@@ -1,7 +1,8 @@
 CFGLog = {
-    "chronic_low_back_pain": {
-        "subject_ids": {
-            "CP": [
+    "data": {
+        "chronic_low_back_pain": {
+            "subject_ids": {
+                "CP": [
                     "018",
                     "022",
                     "024",
@@ -27,7 +28,7 @@ CFGLog = {
                     "050",
                     "056",
                 ],
-            "HC": [
+                "HC": [
                     "C10",
                     "C11",
                     "C12",
@@ -47,69 +48,47 @@ CFGLog = {
                     "C6.",
                     "C7.",
                     "C9.",
-                ],
-            "WSP": [
-                    "018",
-                    "022",
-                    "024",
-                    "031",
-                    "032",
-                    "034",
-                    "036",
-                    "039",
-                    "040",
-                    "045",
-                    "046",
-                    "052",
-                    ],
-            "LP": [
-                    "020",
-                    "021",
-                    "023",
-                    "029",
-                    "044",
-                    "037",
-                    "041",
-                    "042",
-                    "048",
-                    "049",
-                    "050",
-                    "056",
-                    ],
+                ],  
+            },
+            "path": "../../George Kenefati/Chronic Low Back Pain Study/Data/",
         },
+        "chronic_pancreatitis": {
+            "subject_ids": {
+                "CP": ['002',
+                       '003',
+                       '006',
+                       '007',
+                       '008',
+                       '009',
+                       '010',
+                       '011',
+                       '012',
+                       '013',                    
+                       ],
+            },
 
-        "path": "./data/chronic_low_back_pain.csv",
-    },    
-    
-    "chronic_pancreatitis": {
-        "subject_ids": {
-            "CP": [],
-            "HC": [],
-            "WSP": [],
+            "path": "../../George Kenefati/Pancreatitis Pain Study/Data/",
         },
-
-        "path": "./data/chronic_pancreatitis.csv",
+        
+        "lupus": {
+            "subject_ids": {
+                "CP": ['5186',
+                       '6310',
+                       '5295',
+                       ],
+                "NP": ['5873',
+                       '6100',
+                       '6106',
+                       '5648',
+                       '5675',
+                       '5845',
+                       '5713',
+                       ],},
+            "path": "../../George Kenefati/Lupus EEG Biomarker/Data/",
+        },
     },
     
-    "lupus": {
-        "subject_ids": {
-            "CP": [],
-            "HC": [],
-            "WSP": [],
-        },
-
-        "path": "./data/lupus.csv",
-    },
-    
-    "train": {
-        "solver": "liblinear",
-        "max_iter": 1000,
-        "random_state": 2022,
-        "C": 0.01,
-        "penalty": "l2",
-    },
-    
-    "data_info": {
+    "parameters": {
         "sfreq": 600,
         "roi_names": [# Left
              'rostralanteriorcingulate-lh', # Left Rostral ACC
@@ -138,12 +117,77 @@ CFGLog = {
             "low-gamma": [30.0, 58.5],
             "high-gamma": [61.5, 100.0],
         },
+        
+        "ch_names": [
+            "Fp1",
+            "Fpz",
+            "Fp2",
+            "AF3",
+            "AF4",
+            "F11",
+            "F7",
+            "F5",
+            "F3",
+            "F1",
+            "Fz",
+            "F2",
+            "F4",
+            "F6",
+            "F8",
+            "F12",
+            "FT11",
+            "FC5",
+            "FC3",
+            "FC1",
+            "FCz",
+            "FC2",
+            "FC4",
+            "FC6",
+            "FT12",
+            "T7",
+            "C5",
+            "C3",
+            "C1",
+            "Cz",
+            "C2",
+            "C4",
+            "C6",
+            "T8",
+            "TP7",
+            "CP5",
+            "CP3",
+            "CP1",
+            "CPz",
+            "CP2",
+            "CP4",
+            "CP6",
+            "TP8",
+            "M1",
+            "M2",
+            "P7",
+            "P5",
+            "P3",
+            "P1",
+            "Pz",
+            "P2",
+            "P4",
+            "P6",
+            "P8",
+            "PO7",
+            "PO3",
+            "POz",
+            "PO4",
+            "PO8",
+            "O1",
+            "Oz",
+            "O2",
+            "Cb1",
+            "Cb2",
+        ]
+
     },
-    
-    
         
     "output": {
-        "output_path": "./data/exported_models/",
-        "model_name": "20230217_152148_LogReg.pickle",
+        "output_path": "./data",
     },
 }

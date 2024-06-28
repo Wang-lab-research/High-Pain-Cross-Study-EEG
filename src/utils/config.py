@@ -4,9 +4,9 @@ import json
 class Config:
     """Config class which contains data, train and model hyperparameters"""
 
-    def __init__(self, data, train, output):
+    def __init__(self, data, parameters, output):
         self.data = data
-        self.train = train
+        self.parameters = parameters
         self.output = output
 
     @classmethod  # using config to define constructor of the class
