@@ -25,4 +25,4 @@ def get_time_window(peri_stim_time_win=None):
     # print(time_win_path)
     return (tmin, bmax, tmax), time_win_path
 
-def get_resting_time()
+def get_time()
