@@ -14,7 +14,7 @@ class Config:
         """Creates config from json"""
         params = json.loads(json.dumps(cfg), object_hook=HelperDict)
         # init all class instance with data and train attributes
-        return cls(params.data, params.train, params.output)
+        return cls(params.data, params.parameters, params.output)
 
 
 class HelperDict(object):

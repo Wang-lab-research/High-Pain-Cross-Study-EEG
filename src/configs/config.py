@@ -1,3 +1,5 @@
+author = "George Kenefati"
+
 CFGLog = {
     "data": {
         "chronic_low_back_pain": {
@@ -50,7 +52,7 @@ CFGLog = {
                     "C9.",
                 ],  
             },
-            "path": "../../George Kenefati/Chronic Low Back Pain Study/Data/",
+            "path": f"{author}/Chronic Low Back Pain Study/Data/Raw",
         },
         "chronic_pancreatitis": {
             "subject_ids": {
@@ -67,7 +69,7 @@ CFGLog = {
                        ],
             },
 
-            "path": "../../George Kenefati/Pancreatitis Pain Study/Data/",
+            "path": f"{author}/Pancreatitis Pain Study/Data/Raw",
         },
         
         "lupus": {
@@ -84,12 +86,13 @@ CFGLog = {
                        '5845',
                        '5713',
                        ],},
-            "path": "../../George Kenefati/Lupus EEG Biomarker/Data/",
+            "path": f"{author}/Lupus EEG Biomarker/Data/Raw",
         },
     },
     
     "parameters": {
         "sfreq": 600,
+        "random_seed": 42,
         "roi_names": [# Left
              'rostralanteriorcingulate-lh', # Left Rostral ACC
              'caudalanteriorcingulate-lh', # Left Caudal ACC
