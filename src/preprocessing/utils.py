@@ -24,3 +24,5 @@ def get_time_window(peri_stim_time_win=None):
     time_win_path = f"{int(t_win)}_sec_time_window/"
     # print(time_win_path)
     return (tmin, bmax, tmax), time_win_path
+
+def get_resting_time()

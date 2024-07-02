@@ -42,7 +42,8 @@ class Subject:
             os.path.join(root, filename)
             for root, dirnames, filenames in os.walk(self.data_path)
             for filename in filenames
-            if fnmatch.fnmatchcase(filename, '*.edf') or fnmatch.fnmatchcase(filename, '*.EDF')
+            if fnmatch.fnmatchcase(filename, "*.edf")
+            or fnmatch.fnmatchcase(filename, "*.EDF")
         ]
         self.raw_file_path = edf_files[0] if edf_files else None
 
@@ -62,6 +63,13 @@ class Subject:
         self.raw = mne.io.read_raw_fif(self.path, preload=True)
 
     def get_cleaned_resting(self):
+        # For Rachel to complete
+        # Input: raw from EDF file
+        # Steps:
+        # 1. Identify eyes open time frames
+        # 2. Crop to just eyes open
+        # Output: saved .fif file with just eyes open
+        #   and return just resting data
         pass
 
     def get_cleaned_epochs(self):
