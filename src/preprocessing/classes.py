@@ -58,7 +58,7 @@ class Subject:
         return tabulate(table, headers=headers, tablefmt="grid")
 
     def load_raw(self):
-        print(f"Loading {self}")
+        print(f"Loading \n{self}")
         self.raw = mne.io.read_raw_fif(self.path, preload=True)
 
     def get_cleaned_resting(self):
