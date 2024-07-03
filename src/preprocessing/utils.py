@@ -26,7 +26,11 @@ def get_time_window(peri_stim_time_win=None):
     return (tmin, bmax, tmax), time_win_path
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 def get_resting_time()
 =======
 def get_time()
 >>>>>>> cc335f8 (ADD addtional comments for steps for get_cleaned_resting())
+=======
+def get_time()
+>>>>>>> origin/rachel_branch
