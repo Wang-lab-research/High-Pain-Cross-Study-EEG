@@ -1,3 +1,6 @@
+import os
+import glob
+
 
 def get_time_window(peri_stim_time_win=None):
     """
@@ -25,3 +28,29 @@ def get_time_window(peri_stim_time_win=None):
     # print(time_win_path)
     return (tmin, bmax, tmax), time_win_path
 
+
+def get_raw_data_file_path(subject_id, data_path):
+    """
+    Find and return the path to the EDF data file for the given subject ID.
+
+    Args:
+        subject_id (str): The subject ID.
+        data_path (str): The directory where the data files are stored.
+
+    Returns:
+        str: The path to the EDF data file for the given subject ID.
+    """
+    subject_folder = next(
+        (folder for folder in os.listdir(data_path) if subject_id in folder),
+        None,
+    )
+    if subject_folder is None:
+        raise ValueError(f"Subject ID {subject_id} not found in {data_path}.")
+    subject_folder = os.path.join(data_path, subject_folder)
+    data_files = []
+    data_files += glob.glob(subject_folder + "/*.EDF")
+    if len(data_files) != 1:
+        raise ValueError(
+            f"Expected one EDF file in {subject_folder}, found {len(data_files)}"
+        )
+    return data_files[0]

@@ -6,8 +6,7 @@ import mne
 from tabulate import tabulate
 from typing import Dict, List, Union
 from src.configs.config import CFGLog
-import os
-import fnmatch
+from src.preprocessing import utils as pre_utils
 
 
 class Subject:
@@ -37,14 +36,10 @@ class Subject:
 
         # EDF file path
         self.data_path = CFGLog["data"][group]["path"]
-        pattern = f"*{subject_id}*/"
-        edf_files = [
-            os.path.join(root, filename)
-            for root, dirnames, filenames in os.walk(self.data_path)
-            for filename in filenames
-            if fnmatch.fnmatchcase(filename, '*.edf') or fnmatch.fnmatchcase(filename, '*.EDF')
-        ]
-        self.raw_file_path = edf_files[0] if edf_files else None
+
+        self.raw_file_path = pre_utils.get_raw_data_file_path(
+            subject_id=self.subject_id, data_path=self.data_path
+        )
 
         # data
         self.raw = None
@@ -60,6 +55,9 @@ class Subject:
     def load_raw(self):
         print(f"Loading \n{self}")
         self.raw = mne.io.read_raw_fif(self.path, preload=True)
+
+    def preprocess(self):
+        pass
 
     def get_cleaned_resting(self):
         pass

@@ -1,4 +1,10 @@
+import os 
+from pathlib import Path
+from src.preprocessing import utils as pre_utils
+
 author = "George Kenefati"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+print(BASE_DIR)
 
 CFGLog = {
     "data": {
@@ -52,7 +58,7 @@ CFGLog = {
                     "C9.",
                 ],  
             },
-            "path": f"{author}/Chronic Low Back Pain Study/Data/Raw",
+            "path": f"{author}/Chronic Low Back Pain Study/Data/Raw/",
         },
         "chronic_pancreatitis": {
             "subject_ids": {
@@ -69,7 +75,7 @@ CFGLog = {
                        ],
             },
 
-            "path": f"{author}/Pancreatitis Pain Study/Data/Raw",
+            "path": f"{author}/Pancreatitis Pain Study/Data/Raw/",
         },
         
         "lupus": {
@@ -86,7 +92,7 @@ CFGLog = {
                        '5845',
                        '5713',
                        ],},
-            "path": f"{author}/Lupus EEG Biomarker/Data/Raw",
+            "path": f"{author}/Lupus EEG Biomarker/Data/Raw/",
         },
     },
     
@@ -189,8 +195,22 @@ CFGLog = {
         ]
 
     },
-        
+    
     "output": {
-        "output_path": "./data",
+        "output_path": Path("../../data/preprocessed/"),
+        "source_time_courses": {
+            "eyes_open": Path("../../data/preprocessed/source_time_courses/eyes_open"),
+            "epochs": {
+                f"{int(5)}_sec_time_window": Path(
+                    "../../data/preprocessed/source_time_courses/epochs/5_sec_time_window"
+                ),
+            },
+        },
     },
+    "time_window": {
+        "times_tuple": pre_utils.get_time_window(5),
+        "time_window_path": f"{int(5)}_sec_time_window",
+    },
+
 }
+
