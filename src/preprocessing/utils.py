@@ -11,7 +11,7 @@ from IPython import display
 from glob import glob
 from autoreject import AutoReject
 
-RESAMPLE_FREQ = 400
+RESAMPLE_FREQ = 600
 RANDOM_STATE = 42
 
 
@@ -523,6 +523,7 @@ def to_raw(data_path, sub_id, save_path, csv_path, include_noise):
     # clear_display()
 
     return raw, eyes_closed_recording, noise_recording, eyes_open_recording
+
 
 def to_epo(raw, sub_id, data_path, save_path):
     """
