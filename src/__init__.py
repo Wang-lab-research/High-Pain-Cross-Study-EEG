@@ -1,1 +1,1 @@
-print("imported main module")
+print("imported src module")

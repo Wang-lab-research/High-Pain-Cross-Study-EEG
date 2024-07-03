@@ -35,10 +35,9 @@ class Subject:
         self.group = group
 
         # EDF file path
-        self.data_path = CFGLog["data"][group]["path"]
-
+        data_dir = CFGLog["data"][group]["path"]
         self.raw_file_path = pre_utils.get_raw_data_file_path(
-            subject_id=self.subject_id, data_path=self.data_path
+            subject_id=subject_id, data_path=data_dir
         )
 
         # data
@@ -46,6 +45,7 @@ class Subject:
         self.eyes_open = None
         self.epochs = None
         self.stimulus_labels = None
+        self._data_path = data_dir
 
     def __str__(self):
         table = [[self.subject_id, self.group]]
@@ -53,8 +53,8 @@ class Subject:
         return tabulate(table, headers=headers, tablefmt="grid")
 
     def load_raw(self):
-        print(f"Loading \n{self}")
-        self.raw = mne.io.read_raw_fif(self.path, preload=True)
+        self.raw = mne.io.read_raw_edf(self.raw_file_path, preload=True)
+        print(f"Loaded raw for subject {self.subject_id}")
 
     def preprocess(self):
         # parameters for to_raw:data_path, sub_id, save_path, csv_path, include_noise

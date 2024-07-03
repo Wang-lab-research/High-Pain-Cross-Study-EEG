@@ -146,12 +146,13 @@ def get_raw_data_file_path(subject_id, data_path):
         raise ValueError(f"Subject ID {subject_id} not found in {data_path}.")
     subject_folder = os.path.join(data_path, subject_folder)
     data_files = []
-    data_files += glob.glob(subject_folder + "/*.EDF")
+    data_files += glob(subject_folder + "/*.EDF")
     if len(data_files) != 1:
         raise ValueError(
             f"Expected one EDF file in {subject_folder}, found {len(data_files)}"
         )
     return data_files[0]
+
 
 def make_sub_time_win_path(
     sub_id, save_path_cont, save_path_zepo, include_zepochs=True
