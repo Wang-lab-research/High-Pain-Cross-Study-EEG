@@ -1,5 +1,103 @@
 import os
-import glob
+import numpy as np
+import mne
+import pandas as pd
+import pickle
+import h5py
+from mne.preprocessing import ICA
+from pyprep.find_noisy_channels import NoisyChannels
+from IPython import display
+from glob import glob
+
+
+RESAMPLE_FREQ = 400
+RANDOM_STATE = 42
+
+
+def clear_display():
+    display.clear_output(wait=True)
+
+
+def load_raw_data(data_path, sub_id, eog):
+    """
+    Load raw EDF data with specified EOG channel.
+    """
+    sub_folder = next(
+        sub_folder
+        for sub_folder in os.listdir(os.path.join(data_path))
+        if (sub_folder.startswith(sub_id))
+    )
+    eeg_data_raw_file = os.path.join(
+        data_path,
+        sub_folder,
+        next(
+            subfile
+            for subfile in os.listdir(os.path.join(data_path, sub_folder))
+            if (subfile.endswith((".edf", ".EDF")))
+        ),
+    )
+
+    return mne.io.read_raw_edf(eeg_data_raw_file, eog=[eog], preload=True)
+
+
+def set_montage(mne_obj, montage):
+    """
+    Set custom montage for Raw or Epochs object.
+    """
+    print("setting custom montage...")
+    print(montage)
+    if isinstance(montage, str):
+        relative_path = os.path.join(os.path.dirname(__file__), montage)
+        dig_montage = mne.channels.read_custom_montage(relative_path)
+        mne_obj.set_montage(dig_montage, on_missing="ignore")
+    else:
+        mne_obj.set_montage(montage, on_missing="ignore")
+
+
+def import_subs(data_path, fname):
+    # import sub_ids
+    sub_ids = []
+    with open(os.path.join(data_path, fname), "r") as file:
+        for line in file:
+            # Check if the line is not commented out
+            if not line.strip().startswith("#"):
+                # Extracting the subject ID and ignoring any comments or trailing commas
+                sub_id = line.split(",")[0].strip().strip("'")
+                if sub_id:
+                    sub_ids.append(sub_id)
+    return sub_ids
+
+
+# functions for serialization
+def pickle_data(save_path, fname, data):
+    with open(os.path.join(save_path, fname), "wb") as f:
+        pickle.dump(data, f)
+    print(f"Saved {fname} to {save_path}.")
+
+
+def unpickle_data(path, fname):
+    with open(os.path.join(path, fname), "rb") as f:
+        deserialized_object = pickle.load(f)
+    return deserialized_object
+
+
+# Function for loading hdf5 file from parent data folder given sub id
+def load_file(sub_id, data_path, extension="hdf5"):
+    for folder in os.listdir(data_path):
+        if sub_id in folder:
+            sub_id = folder
+            break
+    if extension == "hdf5":
+        h5_files = glob(os.path.join(data_path, folder, f"*.{extension}"))
+        return h5py.File(h5_files[0], "r")
+    elif extension == "edf":
+        edf_files = glob(os.path.join(data_path, folder, "*.edf")) + glob(
+            os.path.join(data_path, folder, "*.EDF")
+        )
+        return mne.io.read_raw_edf(edf_files[0], preload=True)
+    elif extension == "csv":
+        csv_files = glob(os.path.join(data_path, folder, "*.csv"))
+        return pd.read_csv(csv_files[0])
 
 
 def get_time_window(peri_stim_time_win=None):

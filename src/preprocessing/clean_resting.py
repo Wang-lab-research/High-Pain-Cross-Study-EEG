@@ -6,7 +6,7 @@ from src.utils.config import Config
 from src.configs.config import CFGLog
 
 # Settings
-times_tup,time_win_path = preprocess.get_time_window(5)
+times_tup,time_win_path = utils.get_time_window(5)
 
 # Data paths
 data_dir = Path('../../Data/')
