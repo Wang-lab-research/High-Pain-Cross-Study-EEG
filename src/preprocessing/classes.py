@@ -57,9 +57,19 @@ class Subject:
         self.raw = mne.io.read_raw_fif(self.path, preload=True)
 
     def preprocess(self):
+        # parameters for to_raw:data_path, sub_id, save_path, csv_path, include_noise
+        #to_raw(self.data_path, self.subject_id, self.data_path, self.data_path, True)
         pass
-
+    
     def get_cleaned_resting(self):
+        # For Rachel to complete - pause this task
+        # Input: raw from EDF file
+        # Steps:
+        # 1. Identify eyes open time frames
+        # 2. Remove any eroneous KB markers/triggers
+        # 2. Crop to just eyes open
+        # Output: saved .fif file with just eyes open
+        #   and return just resting data
         pass
 
     def get_cleaned_epochs(self):
