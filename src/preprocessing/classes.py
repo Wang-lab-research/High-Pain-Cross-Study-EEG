@@ -62,6 +62,9 @@ class Subject:
         print(f"Loading \n{self}")
         self.raw = mne.io.read_raw_fif(self.path, preload=True)
 
+    def preprocess(self):
+        # parameters for to_raw:data_path, sub_id, save_path, csv_path, include_noise
+        #to_raw(self.data_path, self.subject_id, self.data_path, self.data_path, True)
     def get_cleaned_resting(self):
         # For Rachel to complete - pause this task
         # Input: raw from EDF file
