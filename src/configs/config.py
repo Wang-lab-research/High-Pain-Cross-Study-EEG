@@ -1,10 +1,11 @@
-import os 
-from pathlib import Path
-from src.preprocessing import utils as pre_utils
+import os
 
-author = "George Kenefati"
+AUTHOR = "George Kenefati"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-print(BASE_DIR)
+PARENT_PATH = "../../../../"
+
+PERISTIM_TIME_WIN = 5
 
 CFGLog = {
     "data": {
@@ -56,69 +57,85 @@ CFGLog = {
                     "C6.",
                     "C7.",
                     "C9.",
-                ],  
+                ],
             },
-            "path": f"{author}/Chronic Low Back Pain Study/Data/Raw/",
+            "path": os.path.join(
+                PARENT_PATH, f"{AUTHOR}/Chronic Low Back Pain Study/Data/Raw/"
+            ),
         },
         "chronic_pancreatitis": {
             "subject_ids": {
-                "CP": ['002',
-                       '003',
-                       '006',
-                       '007',
-                       '008',
-                       '009',
-                       '010',
-                       '011',
-                       '012',
-                       '013',                    
-                       ],
+                "CP": [
+                    "002",
+                    "003",
+                    "006",
+                    "007",
+                    "008",
+                    "009",
+                    "010",
+                    "011",
+                    "012",
+                    "013",
+                ],
             },
-
-            "path": f"{author}/Pancreatitis Pain Study/Data/Raw/",
+            "path": os.path.join(
+                PARENT_PATH, f"{AUTHOR}/Pancreatitis Pain Study/Data/Raw/"
+            ),
         },
-        
         "lupus": {
             "subject_ids": {
-                "CP": ['5186',
-                       '6310',
-                       '5295',
-                       ],
-                "NP": ['5873',
-                       '6100',
-                       '6106',
-                       '5648',
-                       '5675',
-                       '5845',
-                       '5713',
-                       ],},
-            "path": f"{author}/Lupus EEG Biomarker/Data/Raw/",
+                "CP": [
+                    "5186",
+                    "6310",
+                    "5295",
+                ],
+                "NP": [
+                    "5873",
+                    "6100",
+                    "6106",
+                    "5648",
+                    "5675",
+                    "5845",
+                    "5713",
+                ],
+            },
+            "path": os.path.join(
+                PARENT_PATH, f"{AUTHOR}/Lupus EEG Biomarker/Data/Raw/"
+            ),
         },
     },
-    
     "parameters": {
         "sfreq": 600,
         "random_seed": 42,
-        "roi_names": [# Left
-             'rostralanteriorcingulate-lh', # Left Rostral ACC
-             'caudalanteriorcingulate-lh', # Left Caudal ACC
-             'postcentral-lh', # Left S1,
-             'insula-lh', 'superiorfrontal-lh', # Left Insula, Left DL-PFC,
-             'medialorbitofrontal-lh', # Left Medial-OFC
-             # Right
-             'rostralanteriorcingulate-rh', # Right Rostral ACC
-             'caudalanteriorcingulate-rh', # Right Caudal ACC
-             'postcentral-rh', # , Right S1
-             'insula-rh', 'superiorfrontal-rh', # Right Insula, Right DL-PFC
-             'medialorbitofrontal-rh', # Right Medial-OFC",
-            ],
-        "roi_acronyms": ["L_rACC", "R_dACC", 
-                         "L_S1", "L_Ins", 
-                         "L_dlPFC", "L_mOFC",
-                         "R_rACC", "R_dACC",
-                         "R_S1", "R_Ins",
-                         "R_dlPFC", "R_mOFC"],
-        
+        "roi_names": [  # Left
+            "rostralanteriorcingulate-lh",  # Left Rostral ACC
+            "caudalanteriorcingulate-lh",  # Left Caudal ACC
+            "postcentral-lh",  # Left S1,
+            "insula-lh",
+            "superiorfrontal-lh",  # Left Insula, Left DL-PFC,
+            "medialorbitofrontal-lh",  # Left Medial-OFC
+            # Right
+            "rostralanteriorcingulate-rh",  # Right Rostral ACC
+            "caudalanteriorcingulate-rh",  # Right Caudal ACC
+            "postcentral-rh",  # , Right S1
+            "insula-rh",
+            "superiorfrontal-rh",  # Right Insula, Right DL-PFC
+            "medialorbitofrontal-rh",  # Right Medial-OFC",
+        ],
+        "roi_acronyms": [
+            "L_rACC",
+            "R_dACC",
+            "L_S1",
+            "L_Ins",
+            "L_dlPFC",
+            "L_mOFC",
+            "R_rACC",
+            "R_dACC",
+            "R_S1",
+            "R_Ins",
+            "R_dlPFC",
+            "R_mOFC",
+        ],
         "freq_bands": {
             "theta": [4.0, 8.0],
             "alpha": [8.0, 13.0],
@@ -126,7 +143,6 @@ CFGLog = {
             "low-gamma": [30.0, 58.5],
             "high-gamma": [61.5, 100.0],
         },
-        
         "ch_names": [
             "Fp1",
             "Fpz",
@@ -192,25 +208,13 @@ CFGLog = {
             "O2",
             "Cb1",
             "Cb2",
-        ]
-
+        ],
     },
-    
     "output": {
-        "output_path": Path("../../data/preprocessed/"),
-        "source_time_courses": {
-            "eyes_open": Path("../../data/preprocessed/source_time_courses/eyes_open"),
-            "epochs": {
-                f"{int(5)}_sec_time_window": Path(
-                    "../../data/preprocessed/source_time_courses/epochs/5_sec_time_window"
-                ),
-            },
+        "parent_save_path": "../../data/preprocessed/",
+        "parent_stc_save_path": {
+            "eyes_open": "../../data/preprocessed/source_time_courses/eyes_open",
+            "epochs": "../../data/preprocessed/source_time_courses/epochs/{PERISTIM_TIME_WIN}_sec_time_window",
         },
     },
-    "time_window": {
-        "times_tuple": pre_utils.get_time_window(5),
-        "time_window_path": f"{int(5)}_sec_time_window",
-    },
-
 }
-
