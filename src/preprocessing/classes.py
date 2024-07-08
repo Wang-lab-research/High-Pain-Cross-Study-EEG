@@ -50,7 +50,7 @@ class Subject:
     def __str__(self):
         table = [[self.subject_id, self.group]]
         headers = ["Subject ID", "Group"]
-        return tabulate(table, headers=headers, tablefmt="grid")
+         return tabulate(table, headers=headers, tablefmt="grid")
 
     def load_raw(self):
         self.raw = mne.io.read_raw_edf(self.raw_file_path, preload=True)
@@ -58,7 +58,7 @@ class Subject:
 
     def preprocess(self):
         # parameters for to_raw:data_path, sub_id, save_path, csv_path, include_noise
-        # to_raw(self.data_path, self.subject_id, self.data_path, self.data_path, True)
+        # self.raw.to_raw(self.data_path, self.subject_id, self.data_path, self.data_path, True)
         pass
 
     def get_cleaned_resting(self):
