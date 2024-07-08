@@ -1,4 +1,5 @@
 from glob import glob
+import os
 import pickle
 import scipy.io as sio
 import numpy as np
@@ -16,15 +17,18 @@ class Subject:
         subject_id
         group
         raw
+        raw_file_path
+        raw
         eyes_open
         epochs
         stimulus_labels
         stc
-        path
     Methods:
-        get_cleaned_resting()
+        load_raw()
+        preprocess()
+        get_cleaned_eyes_open()
         get_cleaned_epochs()
-        get_stc_resting()
+        get_stc_eyes_open()
         get_stc_epochs()
 
     """
@@ -40,7 +44,7 @@ class Subject:
             subject_id=subject_id, data_path=data_dir
         )
 
-        # data
+        # Data objects
         self.raw = None
         self.eyes_open = None
         self.epochs = None
@@ -59,30 +63,42 @@ class Subject:
     def preprocess(self):
         # parameters for to_raw:data_path, sub_id, save_path, csv_path, include_noise
         # to_raw(self.data_path, self.subject_id, self.data_path, self.data_path, True)
-        pass
+        self.save("raw")
 
-    def get_cleaned_resting(self):
-        # For Rachel to complete - pause this task
-        # Input: raw from EDF file
+    def get_cleaned_eyes_open(self):
+        raw = self.raw
+
+        # Input: raw from self.raw
         # Steps:
         # 1. Identify eyes open time frames
         # 2. Remove any eroneous KB markers/triggers
         # 2. Crop to just eyes open
         # Output: saved .fif file with just eyes open
-        #   and return just resting data
-        pass
+        #   and return just eyes_open data
+        self.save("eyes_open")
 
     def get_cleaned_epochs(self):
-        pass
+        
+        self.save("epochs")
 
-    def get_stc_resting(self):
-        pass
+    def get_stc_eyes_open(self):
+        self.save("stc_eyes_open")
 
     def get_stc_epochs(self):
-        pass
+        self.save("stc_epochs")
 
-    def save(self):
-        pass
+    def save(self, object_name: str):
+        if object_name == "stc_eyes_open":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
+        elif object_name == "stc_epochs":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["epochs"]
+        else:
+            save_path = CFGLog["output"]["parent_save_path"]
+
+        save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
+
+        with open(save_file_path, "wb") as file:
+            pickle.dump(object_name, file)
 
 
 class Group:
@@ -108,7 +124,7 @@ class SubjectProcessor:
         self.paths_dict = paths_dict
         self.processed_data_path = self.paths_dict["processed_data_path"]
         self.stc_path = self.paths_dict["stc_path"]
-        self.EO_resting_data_path = self.paths_dict["EO_resting_data_path"]
+        self.EO_eyes_open_data_path = self.paths_dict["EO_eyes_open_data_path"]
         self.zscored_epochs_data_path = self.paths_dict["zscored_epochs_data_path"]
 
         self.sfreq = 400  # Hz
@@ -252,7 +268,7 @@ class SubjectProcessor:
         epochs_data_arrays = []
         sem_epochs_per_sub = []
         stc_epo_arrays = []
-        stc_resting_arrays = []
+        stc_eyes_open_arrays = []
         for subject in subjects_list:
             this_sub_id = subject.subject_id
             epochs, epochs, sem = self._load_epochs(this_sub_id)
@@ -262,16 +278,16 @@ class SubjectProcessor:
             stc_epo_array = self._load_stc_epochs(this_sub_id)
             stc_epo_arrays.append(stc_epo_array)
 
-            stc_resting = None
-            stc_resting_arrays.append(stc_resting)
+            stc_eyes_open = None
+            stc_eyes_open_arrays.append(stc_eyes_open)
 
         # combine data across subjects
         stc_epo_array = np.nanmean(np.array(stc_epo_arrays), axis=0)
         if stc_epo_array.ndim != 3:
             stc_epo_array = np.expand_dims(stc_epo_array, axis=0)
-        stc_resting = (
-            np.nanmean(np.array(stc_resting_arrays), axis=0)
-            if stc_resting is not None
+        stc_eyes_open = (
+            np.nanmean(np.array(stc_eyes_open_arrays), axis=0)
+            if stc_eyes_open is not None
             else None
         )
         epochs_data_arrays = np.array(epochs_data_arrays)
@@ -282,5 +298,5 @@ class SubjectProcessor:
             epochs_data_arrays,
             sem_epochs_per_sub,
             stc_epo_array,
-            stc_resting,
+            stc_eyes_open,
         )
