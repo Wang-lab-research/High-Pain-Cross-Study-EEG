@@ -54,7 +54,7 @@ class Subject:
     def __str__(self):
         table = [[self.subject_id, self.group]]
         headers = ["Subject ID", "Group"]
-         return tabulate(table, headers=headers, tablefmt="grid")
+        return tabulate(table, headers=headers, tablefmt="grid")
 
     def load_raw(self):
         self.raw = mne.io.read_raw_edf(self.raw_file_path, preload=True)
