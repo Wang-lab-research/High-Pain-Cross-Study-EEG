@@ -8,6 +8,7 @@ from tabulate import tabulate
 from typing import Dict, List, Union
 from src.configs.config import CFGLog
 from src.preprocessing import utils as pre_utils
+from src.preprocessing import utils_epo as pre_utils_epo
 
 
 class Subject:
@@ -18,7 +19,7 @@ class Subject:
         group
         raw
         raw_file_path
-        raw
+        preprocessed
         eyes_open
         epochs
         stimulus_labels
@@ -40,15 +41,9 @@ class Subject:
 
         # EDF file path
         data_dir = CFGLog["data"][group]["path"]
-        self.raw_file_path = pre_utils.get_raw_data_file_path(
+        self.subject_folder, self.raw_file_path = pre_utils.get_raw_path(
             subject_id=subject_id, data_path=data_dir
         )
-
-        # Data objects
-        self.raw = None
-        self.eyes_open = None
-        self.epochs = None
-        self.stimulus_labels = None
         self._data_path = data_dir
 
     def __str__(self):
@@ -61,13 +56,13 @@ class Subject:
         print(f"Loaded raw for subject {self.subject_id}")
 
     def preprocess(self):
-        # parameters for to_raw:data_path, sub_id, save_path, csv_path, include_noise
-        # to_raw(self.data_path, self.subject_id, self.data_path, self.data_path, True)
-        self.save("raw")
+        preprocessed_raw = pre_utils.to_raw(
+            self.data_path, self.subject_id, self.data_path, True
+        )
+        self.preprocessed = preprocessed_raw
+        self.save(preprocessed_raw, "preprocessed_raw")
 
     def get_cleaned_eyes_open(self):
-        raw = self.raw
-
         # Input: raw from self.raw
         # Steps:
         # 1. Identify eyes open time frames
@@ -75,19 +70,29 @@ class Subject:
         # 2. Crop to just eyes open
         # Output: saved .fif file with just eyes open
         #   and return just eyes_open data
-        self.save("eyes_open")
+        eyes_open = None
+        self.save(eyes_open, "eyes_open")
 
-    def get_cleaned_epochs(self):
-        
-        self.save("epochs")
+    def get_cleaned_epochs(self, time_range, baseline):
+        self.epochs, self.stimulus_labels, self.pain_ratings = (
+            pre_utils_epo.preprocess_epochs(
+                self.raw, self.subject_id, self.subject_folder
+            )
+        )
+        self.save(self.epochs, "epochs")
+        self.save(self.stimulus_labels, "stimulus_labels")
+        self.save(self.pain_ratings, "pain_ratings")
 
     def get_stc_eyes_open(self):
-        self.save("stc_eyes_open")
+        stc_eyes_open = None
+        self.save(stc_eyes_open, "stc_eyes_open")
 
     def get_stc_epochs(self):
-        self.save("stc_epochs")
+        stc_epochs = None
 
-    def save(self, object_name: str):
+        self.save(stc_epochs, "stc_epochs")
+
+    def save(self, data_object, object_name: str):
         if object_name == "stc_eyes_open":
             save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
         elif object_name == "stc_epochs":
@@ -98,7 +103,7 @@ class Subject:
         save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
 
         with open(save_file_path, "wb") as file:
-            pickle.dump(object_name, file)
+            pickle.dump(data_object, file)
 
 
 class Group:

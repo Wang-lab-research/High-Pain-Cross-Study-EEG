@@ -5,8 +5,6 @@ AUTHOR = "George Kenefati"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_PATH = "../../../../"
 
-PERISTIM_TIME_WIN = 5
-
 CFGLog = {
     "data": {
         "chronic_low_back_pain": {
@@ -209,6 +207,87 @@ CFGLog = {
             "Cb1",
             "Cb2",
         ],
+        "events_dict": {
+            "eyes_closed": {
+                "eyes closed": 1,
+                "Trigger#1": 1,
+                "EYES CLOSED": 1,
+            },
+            "eyes_open": {
+                "eyes open": 2,
+                "eyes opened": 2,
+                "Trigger#2": 2,
+                "EYES OPEN": 2,
+                "eyes openned": 2,
+            },
+            "high_hand": {
+                "pinprick hand": 3,
+                "hand pinprick": 3,
+                "Yes Pain Hand": 3,
+                "Trigger#3": 3,
+                "HAND PINPRICK": 3,
+                "hand 32 gauge pinprick": 3,
+                "Yes Hand Pain": 3,
+                "Hand YES Pain prick": 3,
+            },
+            "med_hand": {
+                "Med Pain Hand": 4,
+                "Med Hand Pain": 4,
+                "Hand Medium Pain prick": 4,
+            },
+            "low_hand": {
+                "No Pain Hand": 5,
+                "hand plastic": 5,
+                "plastic hand": 5,
+                "Trigger#4": 5,
+                "HAND PLASTIC": 5,
+                "hand plastic filament": 5,
+                "No Hand Pain": 5,
+                "Hand NO Pain": 5,
+            },
+            "high_back": {
+                "pinprick back": 6,
+                "back pinprick": 6,
+                "Yes Pain Back": 6,
+                "BACK  PINPRICK": 6,
+                "BACK PINPRICK": 6,
+                "Trigger#5": 6,
+                "back 32 gauge pinprick": 6,
+                "Yes Back Pain": 6,
+                "Back YES Pain prick": 6,
+            },
+            "med_back": {
+                "Med Pain Back": 7,
+                "Med Back Pain": 7,
+                "Back Medium Pain prick": 7,
+            },
+            "low_back": {
+                "plastic back": 8,
+                "back plastic": 8,
+                "No Pain Back": 8,
+                "BACK PLASTIC": 8,
+                "Trigger#6": 8,
+                "back plastic filament": 8,
+                "No Back Pain": 8,
+                "Back No Pain": 8,
+            },
+            "stop": {
+                "stop": 9,
+                "Stop": 9,
+                "STOP": 9,
+            },
+            "pinprick_markers": {
+                "1000001": 10,
+                "100160": 10,
+                "100480": 10,
+                "1000000": 10,
+                "1000010": 11,
+                "100048": 11,
+                "1100001": 12,
+                "100320": 12,
+                "1100010": 13,
+            },
+        },
     },
     "output": {
         "parent_save_path": "../../data/preprocessed/",

@@ -14,47 +14,36 @@ RESAMPLE_FREQ = CFGLog["parameters"]["sfreq"]
 RANDOM_STATE = CFGLog["parameters"]["random_seed"]
 
 
-def clear_display():
+def clear_output():
+    """Clear output of the IPython display."""
     display.clear_output(wait=True)
 
 
-def load_raw_data(data_path, sub_id, eog):
+def load_raw_data(data_directory, subject_id, eog_channel):
     """
     Load raw EDF data with specified EOG channel.
     """
-    sub_folder = next(
-        sub_folder
-        for sub_folder in os.listdir(os.path.join(data_path))
-        if (sub_folder.startswith(sub_id))
+    subject_folder = next(
+        folder for folder in os.listdir(data_directory)
+        if folder.startswith(subject_id)
     )
-    eeg_data_raw_file = os.path.join(
-        data_path,
-        sub_folder,
-        next(
-            subfile
-            for subfile in os.listdir(os.path.join(data_path, sub_folder))
-            if (subfile.endswith((".edf", ".EDF")))
-        ),
+    eeg_data_file = next(
+        file for file in os.listdir(os.path.join(data_directory, subject_folder))
+        if file.endswith((".edf", ".EDF"))
     )
+    eeg_data_path = os.path.join(data_directory, subject_folder, eeg_data_file)
 
-    return mne.io.read_raw_edf(eeg_data_raw_file, eog=[eog], preload=True)
+    return mne.io.read_raw_edf(eeg_data_path, eog=[eog_channel], preload=True)
 
 
-def set_montage(mne_obj, montage):
+def set_montage(mne_object, montage_path):
     """
     Set custom montage for Raw or Epochs object.
     """
-    print("setting custom montage...")
-    print(montage)
-    if isinstance(montage, str):
-        relative_path = os.path.join(os.path.dirname(__file__), montage)
-        dig_montage = mne.channels.read_custom_montage(relative_path)
-        mne_obj.set_montage(dig_montage, on_missing="ignore")
-    else:
-        mne_obj.set_montage(montage, on_missing="ignore")
+    # relative_path = os.path.join(os.path.dirname(__file__), montage)
+    custom_montage = mne.channels.read_custom_montage(montage_path)
+    mne_object.set_montage(custom_montage, on_missing='ignore')
 
-
-# functions for serialization
 def pickle_data(save_path, fname, data):
     with open(os.path.join(save_path, fname), "wb") as f:
         pickle.dump(data, f)
@@ -131,7 +120,7 @@ def make_sub_time_win_path(
     return subpath_cont, subpath_zepo
 
 
-def get_raw_data_file_path(subject_id, data_path):
+def get_raw_path(subject_id, data_path):
     """
     Find and return the path to the EDF data file for the given subject ID.
 
@@ -155,7 +144,8 @@ def get_raw_data_file_path(subject_id, data_path):
         raise ValueError(
             f"Expected one EDF file in {subject_folder}, found {len(data_files)}"
         )
-    return data_files[0]
+    
+    return subject_folder, data_files[0]
 
 
 def crop_by_resting_times(raw, start, stop, sub_id, save_path, category):
@@ -436,19 +426,19 @@ def to_raw(data_path, sub_id, save_path, csv_path, include_noise):
     # apply notch filter
     print(f"{sub_id}\napplying notch filter...")
     raw = raw.notch_filter(60.0, notch_widths=3)
-    clear_display()
+    clear_output()
 
     # apply bandpass filter
     print(f"{sub_id}\napplying bandpass filter...")
     raw = raw.filter(l_freq=1.0, h_freq=100.0)
-    clear_display()
+    clear_output()
 
     # resample data to decrease file size
     print(
         f"{sub_id}\nresampling data from {raw.info['sfreq']} Hz to {RESAMPLE_FREQ} Hz..."
     )
     raw.resample(RESAMPLE_FREQ, npad="auto")
-    clear_display()
+    clear_output()
 
     # find bad channels automatically
     print(f"{sub_id}\nremoving bad channels...")
