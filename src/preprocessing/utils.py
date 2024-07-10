@@ -4,6 +4,13 @@ import mne
 import pandas as pd
 import pickle
 import h5py
+
+import csv
+import sys
+from mne.io import read_raw_fif
+from datetime import timedelta
+
+import scipy.io as scio
 from mne.preprocessing import ICA
 from pyprep.find_noisy_channels import NoisyChannels
 from IPython import display
@@ -149,8 +156,86 @@ def get_raw_path(subject_id: str, data_dir: str) -> tuple:
         raise ValueError(
             f"Expected one EDF file in {subject_folder_path}, found {len(edf_files)}"
         )
+    
+    return subject_folder, data_files[0]
 
-    return subject_folder_path, edf_files[0]
+
+def make_sub_time_win_path(
+    sub_id, save_path_cont, save_path_zepo, include_zepochs=True
+):
+    """
+    Make a subject's time window data path
+    """
+    subpath_cont = os.path.join(save_path_cont, sub_id)
+    if not os.path.exists(subpath_cont):  # continuous
+        os.mkdir(subpath_cont)
+    if include_zepochs:
+        subpath_zepo = os.path.join(save_path_zepo, sub_id)
+        if not os.path.exists(subpath_zepo):  # zepochs
+            os.mkdir(subpath_zepo)
+    return subpath_cont, subpath_zepo
+
+def create_resting_csv(data_path, save_path, sub_id, annotation_keys):
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    
+    file_list = os.listdir(data_path)
+    raw_edf_files = [file for file in file_list if  file.lower().endswith('.edf')]
+    file = raw_edf_files[0]
+    file_path = os.path.join(data_path, file)
+
+    raw = mne.io.read_raw_edf(file_path, preload = False)
+
+    events_from_annot, event_dict = mne.events_from_annotations(raw, event_id = annotation_keys)
+    # Extract timestamps from the events
+    timestamps_with_id = [(event[0] / raw.info['sfreq'], event[2]) for event in events_from_annot]
+
+    saved_times = [None, None, None, None]  # Initialize an array to store timestamps
+
+    for idx, (timestamp, event_id) in enumerate(timestamps_with_id):
+        # Find first instance of event ID 1, then the first instance of event ID 9 afterwards
+        # Find first instance of event ID 2, the the first instance of event ID 9 afterwards
+        description = raw.annotations[idx]['description'].lower()
+        if event_id == 1 or 'closed' in description:
+            if saved_times[0] is None:  # Check if the first index is empty
+                saved_times[0] = timestamp
+        elif (event_id == 9 or 'end' in description) and idx > 0 and (timestamps_with_id[idx - 1][1] == 1 or 'closed' in raw.annotations[idx - 1]['description'].lower()):
+            saved_times[1] = timestamp
+        elif event_id == 2  or 'open' in description:
+            if saved_times[2] is None:  # Check if the third index is empty
+                saved_times[2] = timestamp
+        elif (event_id == 9 or 'end' in description) and idx > 0 and (timestamps_with_id[idx - 1][1] == 2 or 'open' in raw.annotations[idx - 1]['description'].lower()):
+            saved_times[3] = timestamp
+
+    print("Saved Times:", saved_times)
+
+    csv_file_name = f"{sub_id}_RestingTStamps.csv"
+    # Construct the full file path
+    full_file_path = os.path.join(save_path, csv_file_name)
+    
+    # Write data to the CSV file
+    with open(full_file_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Seconds"])
+    
+        for timestamp in saved_times:
+            writer.writerow([timestamp])
+    return full_file_path
+
+
+def load_csv(sub_id, csv_path):
+    """
+    Function purpose: Obtain the CSV file with timestamps for resting EEG timeframe
+    Inputs: sub_id = subject id of interest
+            csv_path = file path to the folder with the csv
+    Outputs: Corresponding csv file for subject of interest
+    """
+    csv_folder = os.listdir(csv_path)
+    for file in csv_folder:
+        if file.endswith(".csv") and sub_id in file:
+            return pd.read_csv(os.path.join(csv_path, file))
+    print(f"CSV file with {sub_id} not found in the folder.")
+    return None
 
 
 def crop_by_resting_times(raw, start, stop, sub_id, save_path, category):
@@ -332,7 +417,7 @@ def to_raw(data_path, sub_id, save_path, csv_path, include_noise):
     # read data, set EOG channel, and drop unused channels
     print(f"{sub_id}\nreading raw file...")
     raw = load_raw_data(data_path, sub_folder, "EOG")
-    sfreq = raw.info["sfreq"]
+    sfreq = 600 #raw.info["sfreq"]  NEED TO CHANGE THIS LATER
     # Assuming `raw`, `sub_id`, and `raw_sfreq` are already defined:
     raw_cropped, was_cropped = remove_trailing_zeros(raw, sub_id, sfreq)
     if was_cropped:
@@ -431,19 +516,19 @@ def to_raw(data_path, sub_id, save_path, csv_path, include_noise):
     # apply notch filter
     print(f"{sub_id}\napplying notch filter...")
     raw = raw.notch_filter(60.0, notch_widths=3)
-    clear_output()
+    #clear_display()
 
     # apply bandpass filter
     print(f"{sub_id}\napplying bandpass filter...")
     raw = raw.filter(l_freq=1.0, h_freq=100.0)
-    clear_output()
+    #clear_display()
 
     # resample data to decrease file size
     print(
         f"{sub_id}\nresampling data from {raw.info['sfreq']} Hz to {RESAMPLE_FREQ} Hz..."
     )
     raw.resample(RESAMPLE_FREQ, npad="auto")
-    clear_output()
+    #clear_display()
 
     # find bad channels automatically
     print(f"{sub_id}\nremoving bad channels...")
