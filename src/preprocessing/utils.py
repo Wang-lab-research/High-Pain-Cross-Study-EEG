@@ -24,11 +24,11 @@ def load_raw_data(data_directory, subject_id, eog_channel):
     Load raw EDF data with specified EOG channel.
     """
     subject_folder = next(
-        folder for folder in os.listdir(data_directory)
-        if folder.startswith(subject_id)
+        folder for folder in os.listdir(data_directory) if folder.startswith(subject_id)
     )
     eeg_data_file = next(
-        file for file in os.listdir(os.path.join(data_directory, subject_folder))
+        file
+        for file in os.listdir(os.path.join(data_directory, subject_folder))
         if file.endswith((".edf", ".EDF"))
     )
     eeg_data_path = os.path.join(data_directory, subject_folder, eeg_data_file)
@@ -42,7 +42,8 @@ def set_montage(mne_object, montage_path):
     """
     # relative_path = os.path.join(os.path.dirname(__file__), montage)
     custom_montage = mne.channels.read_custom_montage(montage_path)
-    mne_object.set_montage(custom_montage, on_missing='ignore')
+    mne_object.set_montage(custom_montage, on_missing="ignore")
+
 
 def pickle_data(save_path, fname, data):
     with open(os.path.join(save_path, fname), "wb") as f:
@@ -120,32 +121,36 @@ def make_sub_time_win_path(
     return subpath_cont, subpath_zepo
 
 
-def get_raw_path(subject_id, data_path):
+def get_raw_path(subject_id: str, data_dir: str) -> tuple:
     """
     Find and return the path to the EDF data file for the given subject ID.
 
     Args:
-        subject_id (str): The subject ID.
-        data_path (str): The directory where the data files are stored.
+        subject_id: The subject ID.
+        data_dir: The directory where the data files are stored.
 
     Returns:
-        str: The path to the EDF data file for the given subject ID.
+        tuple: A tuple containing the subject folder path and the path to the EDF data file.
+
+    Raises:
+        ValueError: If the subject ID is not found in the data path or if more than one EDF file is found.
     """
     subject_folder = next(
-        (folder for folder in os.listdir(data_path) if subject_id in folder),
-        None,
+        (folder for folder in os.listdir(data_dir) if subject_id in folder), None
     )
     if subject_folder is None:
-        raise ValueError(f"Subject ID {subject_id} not found in {data_path}.")
-    subject_folder = os.path.join(data_path, subject_folder)
-    data_files = []
-    data_files += glob(subject_folder + "/*.EDF")
-    if len(data_files) != 1:
+        raise ValueError(f"Subject ID {subject_id} not found in {data_dir}.")
+
+    subject_folder_path = os.path.join(data_dir, subject_folder)
+    edf_files = glob(os.path.join(subject_folder_path, "*.EDF")) + glob(
+        os.path.join(subject_folder_path, "*.edf")
+    )
+    if len(edf_files) != 1:
         raise ValueError(
-            f"Expected one EDF file in {subject_folder}, found {len(data_files)}"
+            f"Expected one EDF file in {subject_folder_path}, found {len(edf_files)}"
         )
-    
-    return subject_folder, data_files[0]
+
+    return subject_folder_path, edf_files[0]
 
 
 def crop_by_resting_times(raw, start, stop, sub_id, save_path, category):

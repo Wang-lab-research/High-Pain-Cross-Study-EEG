@@ -42,7 +42,7 @@ class Subject:
         # EDF file path
         data_dir = CFGLog["data"][group]["path"]
         self.subject_folder, self.raw_file_path = pre_utils.get_raw_path(
-            subject_id=subject_id, data_path=data_dir
+            subject_id=subject_id, data_dir=data_dir
         )
         self._data_path = data_dir
 
@@ -55,12 +55,24 @@ class Subject:
         self.raw = mne.io.read_raw_edf(self.raw_file_path, preload=True)
         print(f"Loaded raw for subject {self.subject_id}")
 
-    def preprocess(self):
-        preprocessed_raw = pre_utils.to_raw(
+
+    def load_preprocessed(self, preprocessed_data_path):
+        self.preprocessed_raw = mne.io.read_raw_fif(
+            f"{preprocessed_data_path}/{self.subject_id}_preprocessed_raw.fif",
+        )
+        self.save(self.preprocessed_raw, "preprocessed_raw")
+        
+    def load_epochs(self, preprocessed_data_path):
+        self.epochs = mne.read_epochs(
+            f"{preprocessed_data_path}/{self.subject_id}_preprocessed-epo.fif",
+        )
+        self.epochs.data = self.epochs.get_data()
+        
+    def preprocess(self, ):
+        self.preprocessed_raw = pre_utils.to_raw(
             self.data_path, self.subject_id, self.data_path, True
         )
-        self.preprocessed = preprocessed_raw
-        self.save(preprocessed_raw, "preprocessed_raw")
+        self.save(self.preprocessed_raw, "preprocessed_raw")
 
     def get_cleaned_eyes_open(self):
         # Input: raw from self.raw
@@ -73,10 +85,14 @@ class Subject:
         eyes_open = None
         self.save(eyes_open, "eyes_open")
 
-    def get_cleaned_epochs(self, time_range, baseline):
+    def get_cleaned_epochs(self, TIME_RANGE, PERISTIM_TIME_WIN):
         self.epochs, self.stimulus_labels, self.pain_ratings = (
             pre_utils_epo.preprocess_epochs(
-                self.raw, self.subject_id, self.subject_folder
+                self.preprocessed_raw,
+                self.subject_id,
+                self.subject_folder,
+                TIME_RANGE,
+                PERISTIM_TIME_WIN,
             )
         )
         self.save(self.epochs, "epochs")
@@ -92,7 +108,7 @@ class Subject:
 
         self.save(stc_epochs, "stc_epochs")
 
-    def save(self, data_object, object_name: str):
+    def save(self, data_object, object_name: str, as_mat: bool = False):
         if object_name == "stc_eyes_open":
             save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
         elif object_name == "stc_epochs":
@@ -102,8 +118,12 @@ class Subject:
 
         save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
 
-        with open(save_file_path, "wb") as file:
-            pickle.dump(data_object, file)
+        if as_mat:
+            save_file_path = save_file_path.replace(".pkl", ".mat")
+            sio.savemat(save_file_path, {object_name: data_object})
+        else:
+            with open(save_file_path, "wb") as file:
+                pickle.dump(data_object, file)
 
 
 class Group:

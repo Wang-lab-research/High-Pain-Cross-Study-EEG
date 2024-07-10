@@ -441,6 +441,16 @@ def correct_single_mismatches(
     )
 
 
+def zscore_epochs(epochs):
+    epochs_data = epochs.get_data()
+    zscores = (epochs_data - epochs_data.mean(axis=0)) / epochs_data.std(axis=0)
+    info = epochs.info
+    zscored_epochs = mne.EpochsArray(
+        data=zscores, info=info, tmin=epochs.tmin, event_id=epochs.event_id
+    )
+    return zscored_epochs
+
+
 def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     """
     Preprocess epochs by correcting missing/incorrect/extra key-presses,
@@ -562,4 +572,7 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
         f"Length of pain ratings: {len(pain_ratings)}"
     )
 
-    return (stim_epochs, stimulus_labels, pain_ratings)
+    # Z-score stimulus epochs
+    zscored_epochs = zscore_epochs(corrected_stim_epochs)
+
+    return (zscored_epochs, stimulus_labels, pain_ratings)
