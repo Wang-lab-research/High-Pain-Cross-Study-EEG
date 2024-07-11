@@ -361,7 +361,7 @@ def verify_lists_match(
             pain_ratings,
         )
     else:
-        print(
+        raise ValueError(
             "Please correct the issues manually using SigViewer, deleting epochs if necessary."
         )
     return (

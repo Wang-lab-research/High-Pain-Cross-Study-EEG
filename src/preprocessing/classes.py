@@ -13,7 +13,7 @@ from src.preprocessing import utils_epo as pre_utils_epo
 
 class Subject:
     """
-    Individual level subject class.
+    Individual level subject class for performing preprocessing.
     Attributes:
         subject_id
         group
@@ -23,6 +23,7 @@ class Subject:
         eyes_open
         epochs
         stimulus_labels
+        pain_ratings
         stc
     Methods:
         load_raw()
@@ -31,20 +32,23 @@ class Subject:
         get_cleaned_epochs()
         get_stc_eyes_open()
         get_stc_epochs()
-
     """
 
-    def __init__(self, subject_id: str, group: str):
+    def __init__(self, subject_id: str, group: str, preprocessed_data_path: str = None):
         assert isinstance(subject_id, str), "Subject ID must be a string"
         self.subject_id = subject_id
         self.group = group
 
-        # EDF file path
+        # data paths
         data_dir = CFGLog["data"][group]["path"]
         self.subject_folder, self.raw_file_path = pre_utils.get_raw_path(
             subject_id=subject_id, data_dir=data_dir
         )
-        self._data_path = data_dir
+        self.preprocessed_data_path = (
+            preprocessed_data_path
+            if preprocessed_data_path is not None
+            else CFGLog["output"]["parent_save_path"]
+        )
 
     def __str__(self):
         table = [[self.subject_id, self.group]]
@@ -55,26 +59,36 @@ class Subject:
         self.raw = mne.io.read_raw_edf(self.raw_file_path, preload=True)
         print(f"Loaded raw for subject {self.subject_id}")
 
-
-    def load_preprocessed(self, preprocessed_data_path):
+    def load_preprocessed(self):
         self.preprocessed_raw = mne.io.read_raw_fif(
-            f"{preprocessed_data_path}/{self.subject_id}_preprocessed_raw.fif",
+            f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed-raw.fif",
         )
-        self.save(self.preprocessed_raw, "preprocessed_raw")
-        
-    def load_epochs(self, preprocessed_data_path):
-        self.epochs = mne.read_epochs(
-            f"{preprocessed_data_path}/{self.subject_id}_preprocessed-epo.fif",
-        )
-        self.epochs.data = self.epochs.get_data()
-        
-    def preprocess(self, ):
-        self.preprocessed_raw = pre_utils.to_raw(
-            self.data_path, self.subject_id, self.data_path, True
-        )
-        self.save(self.preprocessed_raw, "preprocessed_raw")
+        print(f"Loaded preprocessed for subject {self.subject_id}")
+
+    def load_epochs(self):
+        if self.preprocessed_data_path is not None:
+            self.epochs = mne.read_epochs(
+                f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed-epo.fif",
+            )
+            self.epochs.data = self.epochs.get_data()
+        else:
+            raise ValueError("Subject processed path not defined.")
+
+    def preprocess(self):
+        if not self.pkl_exists("preprocessed_raw"):
+            self.load_raw()
+            self.preprocessed_raw = pre_utils.preprocess_entire(
+                self.raw, self.subject_id)
+            self.save(self.preprocessed_raw, "preprocessed_raw")
+        else:
+            self.load_preprocessed()
 
     def get_cleaned_eyes_open(self):
+        if not self.pkl_exists("eyes_open"):
+            pass
+            self.save(self.eyes_open, "eyes_open")
+        else:
+            self.eyes_open = self.load("eyes_open")
         # Input: raw from self.raw
         # Steps:
         # 1. Identify eyes open time frames
@@ -82,31 +96,67 @@ class Subject:
         # 2. Crop to just eyes open
         # Output: saved .fif file with just eyes open
         #   and return just eyes_open data
-        eyes_open = None
-        self.save(eyes_open, "eyes_open")
 
     def get_cleaned_epochs(self, TIME_RANGE, PERISTIM_TIME_WIN):
-        self.epochs, self.stimulus_labels, self.pain_ratings = (
-            pre_utils_epo.preprocess_epochs(
-                self.preprocessed_raw,
-                self.subject_id,
-                self.subject_folder,
-                TIME_RANGE,
-                PERISTIM_TIME_WIN,
+        if not self.pkl_exists("epochs"):
+            self.epochs, self.stimulus_labels, self.pain_ratings = (
+                pre_utils_epo.preprocess_epochs(
+                    self.preprocessed_raw,
+                    self.subject_id,
+                    self.subject_folder,
+                    TIME_RANGE,
+                    PERISTIM_TIME_WIN,
+                )
             )
-        )
-        self.save(self.epochs, "epochs")
-        self.save(self.stimulus_labels, "stimulus_labels")
-        self.save(self.pain_ratings, "pain_ratings")
+            self.save(self.epochs, "epochs")
+            self.save(self.stimulus_labels, "stimulus_labels")
+            self.save(self.pain_ratings, "pain_ratings")
+        else:
+            self.epochs = self.load_epochs()
+            self.load_labels_and_ratings(self.preprocessed_data_path)
 
     def get_stc_eyes_open(self):
+        # TODO add if not self.pkl_exists("stc_eyes_open"):
         stc_eyes_open = None
         self.save(stc_eyes_open, "stc_eyes_open")
 
     def get_stc_epochs(self):
+        # TODO add if not self.pkl_exists("stc_epochs"):
         stc_epochs = None
 
         self.save(stc_epochs, "stc_epochs")
+
+    def load_labels_and_ratings(self, preprocessed_data_path=None):
+        if preprocessed_data_path is not None:
+            self.stimulus_labels = sio.loadmat(
+                os.path.join(
+                    preprocessed_data_path, f"{self.subject_id}_stim_labels.mat"
+                )
+            )
+            self.pain_ratings = sio.loadmat(
+                os.path.join(
+                    preprocessed_data_path, f"{self.subject_id}_pain_ratings.mat"
+                )
+            )
+        else:
+            self.stimulus_labels = pickle.load(
+                open(
+                    os.path.join(
+                        CFGLog["output"]["parent_save_path"],
+                        f"{self.subject_id}_stim_labels.pkl",
+                    ),
+                    "rb",
+                )
+            )
+            self.pain_ratings = pickle.load(
+                open(
+                    os.path.join(
+                        CFGLog["output"]["parent_save_path"],
+                        f"{self.subject_id}_pain_ratings.pkl",
+                    ),
+                    "rb",
+                )
+            )
 
     def save(self, data_object, object_name: str, as_mat: bool = False):
         if object_name == "stc_eyes_open":
@@ -124,6 +174,17 @@ class Subject:
         else:
             with open(save_file_path, "wb") as file:
                 pickle.dump(data_object, file)
+
+    def pkl_exists(self, object_name: str):
+        if object_name == "stc_eyes_open":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
+        elif object_name == "stc_epochs":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["epochs"]
+        else:
+            save_path = CFGLog["output"]["parent_save_path"]
+
+        save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
+        return os.path.exists(save_file_path)
 
 
 class Group:

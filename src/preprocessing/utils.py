@@ -4,13 +4,7 @@ import mne
 import pandas as pd
 import pickle
 import h5py
-
 import csv
-import sys
-from mne.io import read_raw_fif
-from datetime import timedelta
-
-import scipy.io as scio
 from mne.preprocessing import ICA
 from pyprep.find_noisy_channels import NoisyChannels
 from IPython import display
@@ -44,10 +38,6 @@ def load_raw_data(data_directory, subject_id, eog_channel):
 
 
 def set_montage(mne_object, montage_path):
-    """
-    Set custom montage for Raw or Epochs object.
-    """
-    # relative_path = os.path.join(os.path.dirname(__file__), montage)
     custom_montage = mne.channels.read_custom_montage(montage_path)
     mne_object.set_montage(custom_montage, on_missing="ignore")
 
@@ -64,13 +54,13 @@ def unpickle_data(path, fname):
     return deserialized_object
 
 
-def load_file(sub_id, data_path, extension="hdf5"):
+def load_file(subject_id, data_path, extension="hdf5"):
     """
     Loading hdf5 file from parent data folder given sub id
     """
     for folder in os.listdir(data_path):
-        if sub_id in folder:
-            sub_id = folder
+        if subject_id in folder:
+            subject_id = folder
             break
     if extension == "hdf5":
         h5_files = glob(os.path.join(data_path, folder, f"*.{extension}"))
@@ -113,16 +103,16 @@ def get_time_window(peri_stim_time_win=None):
 
 
 def make_sub_time_win_path(
-    sub_id, save_path_cont, save_path_zepo, include_zepochs=True
+    subject_id, save_path_cont, save_path_zepo, include_zepochs=True
 ):
     """
     Make a subject's time window data path
     """
-    subpath_cont = os.path.join(save_path_cont, sub_id)
+    subpath_cont = os.path.join(save_path_cont, subject_id)
     if not os.path.exists(subpath_cont):  # continuous
         os.mkdir(subpath_cont)
     if include_zepochs:
-        subpath_zepo = os.path.join(save_path_zepo, sub_id)
+        subpath_zepo = os.path.join(save_path_zepo, subject_id)
         if not os.path.exists(subpath_zepo):  # zepochs
             os.mkdir(subpath_zepo)
     return subpath_cont, subpath_zepo
@@ -156,89 +146,92 @@ def get_raw_path(subject_id: str, data_dir: str) -> tuple:
         raise ValueError(
             f"Expected one EDF file in {subject_folder_path}, found {len(edf_files)}"
         )
-    
-    return subject_folder, data_files[0]
+
+    return subject_folder, edf_files[0]
 
 
-def make_sub_time_win_path(
-    sub_id, save_path_cont, save_path_zepo, include_zepochs=True
-):
-    """
-    Make a subject's time window data path
-    """
-    subpath_cont = os.path.join(save_path_cont, sub_id)
-    if not os.path.exists(subpath_cont):  # continuous
-        os.mkdir(subpath_cont)
-    if include_zepochs:
-        subpath_zepo = os.path.join(save_path_zepo, sub_id)
-        if not os.path.exists(subpath_zepo):  # zepochs
-            os.mkdir(subpath_zepo)
-    return subpath_cont, subpath_zepo
-
-def create_resting_csv(data_path, save_path, sub_id, annotation_keys):
+def create_resting_csv(data_path, save_path, subject_id, annotation_keys):
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-    
+
     file_list = os.listdir(data_path)
-    raw_edf_files = [file for file in file_list if  file.lower().endswith('.edf')]
+    raw_edf_files = [file for file in file_list if file.lower().endswith(".edf")]
     file = raw_edf_files[0]
     file_path = os.path.join(data_path, file)
 
-    raw = mne.io.read_raw_edf(file_path, preload = False)
+    raw = mne.io.read_raw_edf(file_path, preload=False)
 
-    events_from_annot, event_dict = mne.events_from_annotations(raw, event_id = annotation_keys)
+    events_from_annot, event_dict = mne.events_from_annotations(
+        raw, event_id=annotation_keys
+    )
     # Extract timestamps from the events
-    timestamps_with_id = [(event[0] / raw.info['sfreq'], event[2]) for event in events_from_annot]
+    timestamps_with_id = [
+        (event[0] / raw.info["sfreq"], event[2]) for event in events_from_annot
+    ]
 
     saved_times = [None, None, None, None]  # Initialize an array to store timestamps
 
     for idx, (timestamp, event_id) in enumerate(timestamps_with_id):
         # Find first instance of event ID 1, then the first instance of event ID 9 afterwards
         # Find first instance of event ID 2, the the first instance of event ID 9 afterwards
-        description = raw.annotations[idx]['description'].lower()
-        if event_id == 1 or 'closed' in description:
+        description = raw.annotations[idx]["description"].lower()
+        if event_id == 1 or "closed" in description:
             if saved_times[0] is None:  # Check if the first index is empty
                 saved_times[0] = timestamp
-        elif (event_id == 9 or 'end' in description) and idx > 0 and (timestamps_with_id[idx - 1][1] == 1 or 'closed' in raw.annotations[idx - 1]['description'].lower()):
+        elif (
+            (event_id == 9 or "end" in description)
+            and idx > 0
+            and (
+                timestamps_with_id[idx - 1][1] == 1
+                or "closed" in raw.annotations[idx - 1]["description"].lower()
+            )
+        ):
             saved_times[1] = timestamp
-        elif event_id == 2  or 'open' in description:
+        elif event_id == 2 or "open" in description:
             if saved_times[2] is None:  # Check if the third index is empty
                 saved_times[2] = timestamp
-        elif (event_id == 9 or 'end' in description) and idx > 0 and (timestamps_with_id[idx - 1][1] == 2 or 'open' in raw.annotations[idx - 1]['description'].lower()):
+        elif (
+            (event_id == 9 or "end" in description)
+            and idx > 0
+            and (
+                timestamps_with_id[idx - 1][1] == 2
+                or "open" in raw.annotations[idx - 1]["description"].lower()
+            )
+        ):
             saved_times[3] = timestamp
 
     print("Saved Times:", saved_times)
 
-    csv_file_name = f"{sub_id}_RestingTStamps.csv"
+    csv_file_name = f"{subject_id}_RestingTStamps.csv"
     # Construct the full file path
     full_file_path = os.path.join(save_path, csv_file_name)
-    
+
     # Write data to the CSV file
-    with open(full_file_path, mode='w', newline='') as file:
+    with open(full_file_path, mode="w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["Seconds"])
-    
+
         for timestamp in saved_times:
             writer.writerow([timestamp])
     return full_file_path
 
 
-def load_csv(sub_id, csv_path):
+def load_csv(subject_id, csv_path):
     """
     Function purpose: Obtain the CSV file with timestamps for resting EEG timeframe
-    Inputs: sub_id = subject id of interest
+    Inputs: subject_id = subject id of interest
             csv_path = file path to the folder with the csv
     Outputs: Corresponding csv file for subject of interest
     """
     csv_folder = os.listdir(csv_path)
     for file in csv_folder:
-        if file.endswith(".csv") and sub_id in file:
+        if file.endswith(".csv") and subject_id in file:
             return pd.read_csv(os.path.join(csv_path, file))
-    print(f"CSV file with {sub_id} not found in the folder.")
+    print(f"CSV file with {subject_id} not found in the folder.")
     return None
 
 
-def crop_by_resting_times(raw, start, stop, sub_id, save_path, category):
+def crop_by_resting_times(raw, start, stop, subject_id, save_path, category):
     """
     Function purpose: Create cropped files and save them.
     Inputs: raw = *raw.fif file, start = beginning timepoint in seconds, stop = ending timepoint in seconds
@@ -246,30 +239,30 @@ def crop_by_resting_times(raw, start, stop, sub_id, save_path, category):
             category = name for file (eyes_closed, noise, eyes_open)
     Outputs: cropped file in *raw.fif format
     """
-    filename = f"{sub_id}_{category}-raw.fif"
+    filename = f"{subject_id}_{category}-raw.fif"
     filepath = os.path.join(save_path, filename)
     cropped = raw.copy().crop(tmin=start, tmax=stop)
     cropped.save(filepath, overwrite=True)
     return cropped
 
 
-def get_cropped_resting_EEGs(sub_id, raw, csv_path, save_path, include_noise=True):
+def get_cropped_resting_EEGs(subject_id, raw, csv_path, save_path, include_noise=True):
     """
     Function purpose: Create recording of the full resting EEG
-    Inputs: sub_id = subject ID ie the patient number,
-            raw = *{sub_id}...raw.fif file
+    Inputs: subject_id = subject ID ie the patient number,
+            raw = *{subject_id}...raw.fif file
             csv_path = file path for the folder with the csv with the resting timestamps
             save_path = file path for saving the recording
     Outputs: *raw.fif file with recording for eyes closed only (e.g. 007_eyes_closed-raw.fif)
             *raw.fif file with recording for noise calibration only (e.g. 007_noise-raw.fif)
             *raw.fif file with recording for eyes open only (e.g. 007_eyes_open-raw.fif)
     """
-    timestamp_csv = load_file(sub_id, csv_path, extension="csv")
+    timestamp_csv = load_file(subject_id, csv_path, extension="csv")
     if timestamp_csv is None:
-        print(f"No CSV for {sub_id} found, no cropped recordings created")
+        print(f"No CSV for {subject_id} found, no cropped recordings created")
         return None
 
-    print(f"Loading CSV for {sub_id}")
+    print(f"Loading CSV for {subject_id}")
 
     EC_start, EC_stop, EO_start, EO_stop = timestamp_csv["Seconds"][0:4]
 
@@ -303,74 +296,75 @@ def get_cropped_resting_EEGs(sub_id, raw, csv_path, save_path, include_noise=Tru
     else:
         EC_stop = EC_start + 180
 
-    print(f"Cropping files for {sub_id}\n")
+    print(f"Cropping files for {subject_id}\n")
 
     # Include noise or not
     if include_noise:
         # Crop and save the cropped raw data to a raw.fif file
         EC_cropped = crop_by_resting_times(
-            raw, EC_start, EC_stop, sub_id, save_path, "eyes_closed"
+            raw, EC_start, EC_stop, subject_id, save_path, "eyes_closed"
         )
         noise_cropped = crop_by_resting_times(
-            raw, noise_start, noise_stop, sub_id, save_path, "noise"
+            raw, noise_start, noise_stop, subject_id, save_path, "noise"
         )
         EO_cropped = crop_by_resting_times(
-            raw, cropped_EO_start, cropped_EO_stop, sub_id, save_path, "eyes_open"
+            raw, cropped_EO_start, cropped_EO_stop, subject_id, save_path, "eyes_open"
         )
     else:
         # Crop and save the cropped raw data to a raw.fif file
         EO_cropped = crop_by_resting_times(
-            raw, EO_start, EO_stop, sub_id, save_path, "eyes_open"
+            raw, EO_start, EO_stop, subject_id, save_path, "eyes_open"
         )
         EC_cropped = None
         noise_cropped = None
     return EC_cropped, noise_cropped, EO_cropped
 
 
-def remove_trailing_zeros(raw, sub_id, sfreq):
+def remove_trailing_zeros(raw, subject_id):
     """
     Removes trailing zeros from raw data channels.
 
     Parameters:
     - raw: The raw data object containing time-series data.
-    - sub_id: Subject identifier.
-    - sfreq: Sampling frequency.
+    - subject_id: Subject identifier.
 
     Returns:
     - raw: The potentially modified raw data object after cropping.
-    - need_crop: A boolean indicating if cropping was performed.
+    - trailing_zeroes_present: A boolean indicating if cropping was performed.
     """
-    raw_dur = raw.times[-1]
+    raw_duration = raw.times[-1]
     raw_data = raw.get_data()
-    need_crop = False
+    trailing_zeroes_present = False
 
-    print(f"Looking for trailing zeros in subject {sub_id}")
-
-    zero_count = 0
-    ch = raw_data[0]
-    for i in range(len(ch)):
-        if ch[i] == 0.0:
-            zero_count += 1
-            if zero_count >= 100:
-                start_index = i - (zero_count - 1)
-                end_index = len(ch)
-                print(
-                    f"{zero_count} consecutive zeros found starting at index {start_index}"
-                )
-                zeros_dur = (end_index - start_index) / sfreq
-                print(f"Duration: {zeros_dur} sec")
-                need_crop = True
+    for channel_data in raw_data:
+        consecutive_zeros = 0
+        for i in range(len(channel_data)):
+            if channel_data[i] == 0.0:
+                consecutive_zeros += 1
+            else:
+                consecutive_zeros = 0
+            if consecutive_zeros >= 100:
+                start_index = i - (consecutive_zeros - 1)
+                end_index = len(channel_data)
+                trailing_zeros_duration = (end_index - start_index) / raw.info["sfreq"]
+                trailing_zeroes_present = True
                 break
-        else:
-            zero_count = 0
-    if need_crop:
-        print("Need to crop trailing zeros")
-        raw = raw.crop(tmin=0, tmax=raw_dur - np.ceil(zeros_dur), include_tmax=False)
+        if trailing_zeroes_present:
+            break
 
-    return raw, need_crop
+    if trailing_zeroes_present:
+        raw = raw.crop(
+            tmin=0,
+            tmax=raw_duration - np.ceil(trailing_zeros_duration),
+            include_tmax=False,
+        )
+
+    return raw, trailing_zeroes_present
 
 
-def get_binary_pain_trials(sub_id, pain_ratings_raw, pain_thresh, processed_data_path):
+def get_binary_pain_trials(
+    subject_id, pain_ratings_raw, pain_thresh, processed_data_path
+):
     pain_ratings = [
         1 if el > pain_thresh else 0 for i, el in enumerate(pain_ratings_raw)
     ]
@@ -387,16 +381,16 @@ def get_binary_pain_trials(sub_id, pain_ratings_raw, pain_thresh, processed_data
     trial_counts_dict = dict(zip(unique_labels, counts))
     pain_trials_counts = list(trial_counts_dict.values())
 
-    # If no painful trials or not enough, take note of sub_id
+    # If no painful trials or not enough, take note of subject_id
     if (
         len(pain_trials_counts) == 1
         or np.all([el >= 4 for el in pain_trials_counts]) is False
     ):
         # save record of which subjects don't meet the requirement
         with open(
-            processed_data_path / "Insufficient_Pain_Trials_Sub_IDs.txt", "a"
+            processed_data_path / "Insufficient_Pain_Trials_subject_ids.txt", "a"
         ) as txt_file:
-            txt_file.write(sub_id / "\n")
+            txt_file.write(subject_id / "\n")
 
         # set pain ratings to None
         pain_ratings = None
@@ -404,152 +398,135 @@ def get_binary_pain_trials(sub_id, pain_ratings_raw, pain_thresh, processed_data
     return pain_ratings
 
 
-def to_raw(data_path, sub_id, save_path, csv_path, include_noise):
-    """
-    Preprocess raw EDF data to filtered FIF format.
-    """
-    for sub_folder in os.listdir(data_path):
-        if sub_folder.startswith(sub_id):
-            save_fname_fif = sub_id + "_preprocessed-raw.fif"
-            print(sub_id, save_fname_fif)
-            break
+def preprocess_entire(raw, subject_id):
+    raw = remove_trailing_zeros(raw, subject_id)
 
-    # read data, set EOG channel, and drop unused channels
-    print(f"{sub_id}\nreading raw file...")
-    raw = load_raw_data(data_path, sub_folder, "EOG")
-    sfreq = 600 #raw.info["sfreq"]  NEED TO CHANGE THIS LATER
-    # Assuming `raw`, `sub_id`, and `raw_sfreq` are already defined:
-    raw_cropped, was_cropped = remove_trailing_zeros(raw, sub_id, sfreq)
-    if was_cropped:
-        print("Data was cropped to remove trailing zeros.")
-        raw = raw_cropped
-
-    # if channel names are numeric, drop them
-    raw.drop_channels([ch for ch in raw.ch_names if ch.isnumeric()])
-
-    # read data, set EOG channel, and drop unused channels
-    montage_fname = "../montages/Hydro_Neo_Net_64_xyz_cms_No_FID.sfp"
-    Fp1_eog_flag = 0
-    # 32 channel case
     if "X" in raw.ch_names and len(raw.ch_names) < 64:
-        raw = load_raw_data(data_path, sub_folder, "Fp1")
-
-        # replace with EOG
-        raw.rename_channels({"Fp1": "EOG"})
-
-        Fp1_eog_flag = 1
-
-        non_eeg_chs = ["X", "Y", "Z"] if "X" in raw.ch_names else []
-        non_eeg_chs += ["Oth4"] if "Oth4" in raw.ch_names else []
-
-        raw.drop_channels(non_eeg_chs)
-        montage_fname = "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp"
-        set_montage(raw, montage_fname)
-
-    # 64 channel case
+        rename_and_set_channel_types_32(raw)
+        drop_unused_channels_32(raw)
+        set_montage(raw, "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp")
     else:
-        # For Compumedics 64 channel cap
-        if "VEO" in raw.ch_names or "VEOG" in raw.ch_names:
-            # eog_adj = 5
-            raw = load_raw_data(
-                data_path, sub_folder, "VEO" if "VEO" in raw.ch_names else "VEOG"
-            )
-            # replace VEO with EOG
-            raw.rename_channels({"VEO" if "VEO" in raw.ch_names else "VEOG": "EOG"})
+        handle_64_channel_case(raw, subject_id)
 
-            non_eeg_chs = (
-                ["HEOG", "EKG", "EMG", "Trigger"]
-                if "HEOG" in raw.ch_names
-                else ["HEO", "EKG", "EMG", "Trigger"]
-            )
-            raw.drop_channels(non_eeg_chs)
-            montage_fname = "../montages/Hydro_Neo_Net_64_xyz_cms_No_FID.sfp"
-            set_montage(raw, montage_fname)
+    apply_notch_filter(raw)
+    apply_bandpass_filter(raw)
+    resample_data(raw)
 
-            # For subjects C24, 055, 056, 047 the wrong montage was used
-            if {"FT7", "PO5"}.issubset(set(raw.ch_names)):
-                raw.drop_channels(["FT7", "FT8", "PO5", "PO6"])
-                montage_fname = "../montages/Hydro_Neo_Net_64_xyz_cms_No_FID_Caps.sfp"
-                set_montage(raw, montage_fname)
-        if "EEG66" in raw.ch_names:
-            non_eeg_chs = ["EEG66", "EEG67", "EEG68", "EEG69"]
-            raw.drop_channels(non_eeg_chs)
+    find_and_interpolate_bad_channels(raw)
+    set_average_reference(raw)
 
-        # For 64 channel gTec cap
-        if "AF8" in raw.ch_names:
-            # Form the 10-20 montage
-            mont1020 = mne.channels.make_standard_montage("standard_1020")
+    fit_ica(raw, subject_id)
+    find_eog_artifacts(raw, subject_id)
+    apply_ica(raw, subject_id)
 
-            # Rename capitalized channels to lowercase
-            print("Renaming capitalized channels to lowercase...")
-            for i, ch in enumerate(raw.info["ch_names"]):
-                if "FP" in ch:
-                    raw.rename_channels({ch: "Fp" + ch[2:]})
+    inspect_data(raw, subject_id)
 
-            # Choose what channels you want to keep
-            # Make sure that these channels exist e.g. T1 does not exist in the standard 10-20 EEG system!
-            kept_channels = raw.info["ch_names"][:64]
-            ind = [
-                i
-                for (i, channel) in enumerate(mont1020.ch_names)
-                if channel.lower() in map(str.lower, kept_channels)
-            ]
-            mont1020_new = mont1020.copy()
-            # Keep only the desired channels
-            mont1020_new.ch_names = [mont1020.ch_names[x] for x in ind]
-            kept_channel_info = [mont1020.dig[x + 3] for x in ind]
-            # Keep the first three rows as they are the fiducial points information
-            mont1020_new.dig = mont1020.dig[0:3] + kept_channel_info
-            set_montage(raw, mont1020_new)
+    return raw
 
-    # # 007 and 010 had extremely noisy data near the ends of their recordings.
-    # # Crop it out.
-    # if sub_id == "007":
-    #     raw = raw.crop(tmax=1483)
-    # elif sub_id == "010":
-    #     raw.crop(tmax=1997.8)
 
-    # high level inspection
-    print(raw.ch_names)
-    print(len(raw.ch_names))
+def rename_and_set_channel_types_32(raw):
+    raw.rename_channels({"Fp1": "EOG"})
+    raw.set_channel_type({"EOG": "EOG"})
 
-    # apply notch filter
-    print(f"{sub_id}\napplying notch filter...")
-    raw = raw.notch_filter(60.0, notch_widths=3)
-    #clear_display()
 
-    # apply bandpass filter
-    print(f"{sub_id}\napplying bandpass filter...")
-    raw = raw.filter(l_freq=1.0, h_freq=100.0)
-    #clear_display()
+def drop_unused_channels_32(raw):
+    non_eeg_chs = ["X", "Y", "Z"] if "X" in raw.ch_names else []
+    non_eeg_chs += ["Oth4"] if "Oth4" in raw.ch_names else []
+    raw.drop_channels(non_eeg_chs)
+    set_montage(raw, "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp")
 
-    # resample data to decrease file size
-    print(
-        f"{sub_id}\nresampling data from {raw.info['sfreq']} Hz to {RESAMPLE_FREQ} Hz..."
-    )
+
+def handle_64_channel_case(raw, subject_id):
+    """
+    Handle the case of 64 channel EEG data.
+
+    Parameters
+    ----------
+    raw : mne.io.Raw
+        The raw EEG data.
+    subject_id : str
+        The subject ID.
+    """
+    # Check if the data is from the 64 channel EEG cap
+    if {"VEO", "VEOG"}.issubset(set(raw.ch_names)):
+        # Rename channels
+        raw.rename_channels({"VEO" if "VEO" in raw.ch_names else "VEOG": "EOG1"})
+        raw.rename_channels({"HEO" if "HEO" in raw.ch_names else "HEOG": "EOG2"})
+        raw.set_channel_type({"EOG1": "EOG", "EOG2": "EOG"})
+
+        # Drop non-EEG channels
+        non_eeg_chs = ["EKG", "EMG", "Trigger"]
+        raw.drop_channels(non_eeg_chs)
+
+        # Drop extra channels
+        if {"FT7", "PO5"}.issubset(set(raw.ch_names)):
+            raw.drop_channels(["FT7", "FT8", "PO5", "PO6"])
+
+        # Set montage
+        set_montage(raw, "../montages/Hydro_Neo_Net_64_xyz_cms_No_FID.sfp")
+
+    # Check if the data is from the gTec cap
+    elif "AF8" in raw.ch_names:
+        # Rename channels
+        raw.rename_channels({"65": "EOG1", "66": "EOG2"})
+        raw.set_channel_type({"EOG1": "EOG", "EOG2": "EOG"})
+
+        # Drop numeric channels
+        raw.drop_channels([ch for ch in raw.ch_names if ch.isnumeric()])
+
+        # Rename FP channels
+        for i, ch in enumerate(raw.info["ch_names"]):
+            if "FP" in ch:
+                raw.rename_channels({ch: "Fp" + ch[2:]})
+
+        # Create new montage
+        montage_1020 = mne.channels.make_standard_montage("standard_1020")
+        kept_channels = raw.info["ch_names"][:64]
+        ind = [
+            i
+            for (i, channel) in enumerate(montage_1020.ch_names)
+            if channel.lower() in map(str.lower, kept_channels)
+        ]
+        montage_1020_new = montage_1020.copy()
+        montage_1020_new.ch_names = [montage_1020.ch_names[x] for x in ind]
+        kept_channel_info = [montage_1020.dig[x + 3] for x in ind]
+
+        montage_1020_new.dig = montage_1020.dig[0:3] + kept_channel_info
+
+        # Drop extra channels
+        if "A1" in raw.ch_names:
+            raw.drop_channels(["A1", "A2"])
+
+        # Set montage
+        set_montage(raw, montage_1020_new)
+
+    return raw
+
+
+def apply_notch_filter(raw):
+    raw.notch_filter(60.0, notch_widths=3)
+
+
+def apply_bandpass_filter(raw):
+    raw.filter(l_freq=1.0, h_freq=100.0)
+
+
+def resample_data(raw):
     raw.resample(RESAMPLE_FREQ, npad="auto")
-    #clear_display()
 
-    # find bad channels automatically
-    print(f"{sub_id}\nremoving bad channels...")
+
+def find_and_interpolate_bad_channels(raw):
     raw_pyprep = NoisyChannels(raw, random_state=RANDOM_STATE)
-    raw_pyprep.find_all_bads(ransac=False, channel_wise=False, max_chunk_size=None)
+    raw_pyprep.find_all_bads(ransac=True, channel_wise=False, max_chunk_size=None)
     raw.info["bads"] = raw_pyprep.get_bads()
-    print(f"{sub_id} bad channels: {raw.info['bads']}")
     raw.interpolate_bads()
-    # clear_display()
 
-    # re-reference channels
-    print(f"{sub_id}\nre-referencing channels to average...")
-    raw, _ = mne.set_eeg_reference(raw, ref_channels="average", copy=True)
-    # clear_display()
 
-    # Drop reference channels
-    if "A1" in raw.ch_names:
-        raw.drop_channels(["A1", "A2"])
+def set_average_reference(raw):
+    raw.set_eeg_reference(ref_channels="average")
 
-    # fit ICA
-    print(f"{sub_id}\nfitting ICA...")
+
+def fit_ica(raw, subject_id):
     num_goods = len(raw.ch_names) - len(raw.info["bads"]) - 1  # adjust for EOG
     ica = ICA(
         n_components=int(np.floor(num_goods / 2)),
@@ -557,55 +534,138 @@ def to_raw(data_path, sub_id, save_path, csv_path, include_noise):
         max_iter="auto",
     )
     ica.fit(raw)
-    # clear_display()
 
-    # find EOG artifacts
+
+def find_eog_artifacts(raw, subject_id):
     print(raw.ch_names)
     if "EOG" in raw.ch_names:
-        print(f"{sub_id}\nfinding EOG artifacts...")
+        print(f"{subject_id}\nfinding EOG artifacts...")
         try:
-            eog_indices, eog_scores = ica.find_bads_eog(raw, threshold="auto")
-            ica.exclude = eog_indices
+            eog_indices, eog_scores = ICA.find_bads_eog(raw, threshold="auto")
+            ICA.exclude = eog_indices
         except ValueError:
-            ica.exclude = [0, 1]
-        # clear_display()
+            ICA.exclude = [0, 1]
 
-    # apply ICA
-    print(f"{sub_id}\napplying ICA...")
-    ica.apply(raw)
-    # clear_display()
 
-    # save copy of data
-    print(f"Saving processed data as '{save_fname_fif}'...")
+def apply_ica(raw, subject_id):
+    ICA.apply(raw)
 
-    if "VEO" in raw.ch_names:
-        raw.drop_channels("VEO")
-    elif "VEOG" in raw.ch_names:
-        raw.drop_channels("VEOG")
-    elif Fp1_eog_flag:
-        montage_fname = "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp"
-        set_montage(raw, montage_fname)
 
-    (
-        eyes_closed_recording,
-        noise_recording,
-        eyes_open_recording,
-    ) = get_cropped_resting_EEGs(
-        sub_id, raw, csv_path, save_path, include_noise=include_noise
-    )  # get_cropped_resting_EEGs saves the three resting recordings into same folder as raw
-
-    # No need to save raw anymore, saving the cropped files instead
-    # raw.save(save_path+save_fname_fif,
-    #          verbose=True, overwrite=True)
-    # clear_display()
-
-    # high level inspection
+def inspect_data(raw, subject_id):
     print(raw.ch_names)
     print("\nNumber of remaining channels: ", len(raw.ch_names) - len(raw.info["bads"]))
     print("\nDropped channels: ", raw.info["bads"])
-
     print("Raw data preprocessing complete.")
 
-    # clear_display()
 
-    return raw, eyes_closed_recording, noise_recording, eyes_open_recording
+def crop_resting_EO(
+    raw, sub_id, data_path, processed_data_path, events=None, event_ids=None
+):
+    # Get converted EDF file for events
+    raw_edf = load_file(sub_id, data_path, extension="edf")
+    sfreq = raw.info["sfreq"]
+
+    if events is None and event_ids is None:
+        events, event_ids = mne.events_from_annotations(raw_edf)
+
+    # For now get just the events we are interested in, eyes open and stop
+
+    # Set events indicating start and end of resting eyes open
+    eyes_open_id = event_ids["KB-Marker-0 (Eyes open) "]
+    stop_id = event_ids["KB-Marker-9 (END/STOP test) "]
+
+    # Check for eyes open marker and stop marker either right after or two after the event, to accout for mistakes
+    max_time = 320 * sfreq  # maximum time between eyes open and stop
+    for i in range(len(events)):
+        # local events
+        if events[i][2] == eyes_open_id:
+            this_event = events[i]
+            next_event = events[i + 1]
+            following_event = events[i + 2] if len(events) > i + 2 else None
+
+            # get event ids
+            this_event_id = this_event[2]
+            next_event_id = next_event[2]
+            following_event_id = (
+                following_event[2] if following_event is not None else None
+            )
+
+            # get event times
+            this_event_samples = this_event[0]
+            next_event_samples = next_event[0]
+            following_event_samples = (
+                following_event[0] if following_event is not None else None
+            )
+
+            # save eyes open times if valid
+            if (
+                this_event_id == eyes_open_id
+                and next_event_id == stop_id
+                and (next_event_samples - this_event_samples) < max_time
+            ):
+                print("\nEyes open found and next event STOP")
+                eyes_open_events = [i, i + 1]
+                eyes_open_times = [el[0] for el in events[eyes_open_events]]
+            elif (
+                this_event_id == eyes_open_id
+                and following_event_id == stop_id
+                and (following_event_samples - this_event_samples) < max_time
+            ):
+                print("\nEyes open found and FOLLOWING event STOP")
+                eyes_open_events = [i, i + 2]
+                eyes_open_times = [el[0] for el in events[eyes_open_events]]
+            elif this_event_id == eyes_open_id and (
+                next_event_id != stop_id or following_event_id != stop_id
+            ):
+                print("\nEyes open found but NO STOP found")
+                eyes_open_events = [
+                    i,
+                ]
+                eyes_open_times = [el[0] for el in events[eyes_open_events]]
+                eyes_open_times.append(eyes_open_times[0] + 300 * sfreq)
+            else:
+                raise ValueError("\nError, an eyes open window cannot be created")
+
+            # Get eyes open times
+            eyes_open_times_seconds = [el / sfreq for el in eyes_open_times]
+            break
+
+    print(f"\nEyes open times: {eyes_open_times_seconds}")
+
+    # save cropped data
+    raw.crop(tmin=eyes_open_times_seconds[0], tmax=eyes_open_times_seconds[-1])
+
+    raw.save(processed_data_path / f"{sub_id}_eyes_open-raw.fif", overwrite=True)
+
+    # crop data
+    return raw
+
+
+def snip_span(raw, t1, t2):
+    """
+    Extracts the data from raw as numpy array, snip a middle section out based on two time values,
+    reconcatenate the numpy array, then create an mne.RawArray object using the raw.info
+
+    Args:
+    raw (mne.io.Raw): Input raw data
+    t1 (float): Start time of the section to be removed in seconds
+    t2 (float): End time of the section to be removed in seconds
+
+    Returns:
+    mne.io.RawArray: Processed raw data
+    """
+
+    # Extract the data and times from raw
+    data, times = raw[:]
+
+    # Convert times to indices
+    idx1 = np.argmin(np.abs(times - t1))
+    idx2 = np.argmin(np.abs(times - t2))
+
+    # Snip out the middle section and reconcatenate
+    processed_data = np.concatenate((data[:, :idx1], data[:, idx2:]), axis=1)
+
+    # Create a new MNE RawArray object with the processed data
+    processed_raw = mne.io.RawArray(processed_data, raw.info)
+
+    return processed_raw
