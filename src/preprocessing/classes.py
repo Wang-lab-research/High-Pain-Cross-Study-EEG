@@ -19,12 +19,15 @@ class Subject:
         group
         raw
         raw_file_path
-        preprocessed
+        preprocessed_raw
+        preprocessed_data_path
         eyes_open
         epochs
         stimulus_labels
         pain_ratings
-        stc
+        event_samples
+        stc_eyes_open
+        stc_epochs
     Methods:
         load_raw()
         preprocess()
@@ -32,6 +35,10 @@ class Subject:
         get_cleaned_epochs()
         get_stc_eyes_open()
         get_stc_epochs()
+        load_epochs()
+        load_epochs_info()
+        save()
+        pkl_exists()
     """
 
     def __init__(self, subject_id: str, group: str, preprocessed_data_path: str = None):
@@ -78,7 +85,8 @@ class Subject:
         if not self.pkl_exists("preprocessed_raw"):
             self.load_raw()
             self.preprocessed_raw = pre_utils.preprocess_entire(
-                self.raw, self.subject_id)
+                self.raw, self.subject_id
+            )
             self.save(self.preprocessed_raw, "preprocessed_raw")
         else:
             self.load_preprocessed()
@@ -99,7 +107,7 @@ class Subject:
 
     def get_cleaned_epochs(self, TIME_RANGE, PERISTIM_TIME_WIN):
         if not self.pkl_exists("epochs"):
-            self.epochs, self.stimulus_labels, self.pain_ratings = (
+            self.epochs, self.stimulus_labels, self.pain_ratings, self.event_samples = (
                 pre_utils_epo.preprocess_epochs(
                     self.preprocessed_raw,
                     self.subject_id,
@@ -108,9 +116,11 @@ class Subject:
                     PERISTIM_TIME_WIN,
                 )
             )
-            self.save(self.epochs, "epochs")
-            self.save(self.stimulus_labels, "stimulus_labels")
-            self.save(self.pain_ratings, "pain_ratings")
+            for as_mat in [False, True]:
+                self.save(self.epochs, "epochs", as_mat=as_mat)
+                self.save(self.stimulus_labels, "stimulus_labels", as_mat=as_mat)
+                self.save(self.pain_ratings, "pain_ratings", as_mat=as_mat)
+                self.save(self.event_samples, "event_samples", as_mat=as_mat)
         else:
             self.epochs = self.load_epochs()
             self.load_epochs_info(self.preprocessed_data_path)
@@ -130,7 +140,7 @@ class Subject:
         if preprocessed_data_path is not None:
             self.stimulus_labels = sio.loadmat(
                 os.path.join(
-                    preprocessed_data_path, f"{self.subject_id}_stim_labels.mat"
+                    preprocessed_data_path, f"{self.subject_id}_stimulus_labels.mat"
                 )
             )
             self.pain_ratings = sio.loadmat(
@@ -138,8 +148,10 @@ class Subject:
                     preprocessed_data_path, f"{self.subject_id}_pain_ratings.mat"
                 )
             )
-            self.epo_times = sio.loadmat(
-                os.path.join(preprocessed_data_path, f"{self.subject_id}_epo_times.mat")
+            self.event_samples = sio.loadmat(
+                os.path.join(
+                    preprocessed_data_path, f"{self.subject_id}_event_samples.mat"
+                )
             )
         else:
             self.stimulus_labels = pickle.load(
@@ -160,11 +172,11 @@ class Subject:
                     "rb",
                 )
             )
-            self.epo_times = pickle.load(
+            self.event_samples = pickle.load(
                 open(
                     os.path.join(
                         CFGLog["output"]["parent_save_path"],
-                        f"{self.subject_id}_epo_times.pkl",
+                        f"{self.subject_id}_event_samples.pkl",
                     )
                 )
             )

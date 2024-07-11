@@ -37,7 +37,7 @@ def load_raw_data(data_directory, subject_id, eog_channel):
     return mne.io.read_raw_edf(eeg_data_path, eog=[eog_channel], preload=True)
 
 
-def set_montage(mne_object, montage_path):
+def set_custom_montage(mne_object, montage_path):
     custom_montage = mne.channels.read_custom_montage(montage_path)
     mne_object.set_montage(custom_montage, on_missing="ignore")
 
@@ -404,7 +404,7 @@ def preprocess_entire(raw, subject_id):
     if "X" in raw.ch_names and len(raw.ch_names) < 64:
         rename_and_set_channel_types_32(raw)
         drop_unused_channels_32(raw)
-        set_montage(raw, "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp")
+        set_custom_montage(raw, "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp")
     else:
         handle_64_channel_case(raw, subject_id)
 
@@ -415,9 +415,9 @@ def preprocess_entire(raw, subject_id):
     find_and_interpolate_bad_channels(raw)
     set_average_reference(raw)
 
-    fit_ica(raw, subject_id)
+    ica = fit_ica(raw, subject_id)
     find_eog_artifacts(raw, subject_id)
-    apply_ica(raw, subject_id)
+    ica.apply(raw)
 
     inspect_data(raw, subject_id)
 
@@ -425,15 +425,15 @@ def preprocess_entire(raw, subject_id):
 
 
 def rename_and_set_channel_types_32(raw):
-    raw.rename_channels({"Fp1": "EOG"})
-    raw.set_channel_type({"EOG": "EOG"})
+    raw.rename_channels({"Fp1": "eog"})
+    raw.set_channel_types({"EOG": "eog"})
 
 
 def drop_unused_channels_32(raw):
     non_eeg_chs = ["X", "Y", "Z"] if "X" in raw.ch_names else []
     non_eeg_chs += ["Oth4"] if "Oth4" in raw.ch_names else []
     raw.drop_channels(non_eeg_chs)
-    set_montage(raw, "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp")
+    set_custom_montage(raw, CFGLog["parameters"]["32_channel_montage_file_path"])
 
 
 def handle_64_channel_case(raw, subject_id):
@@ -448,11 +448,11 @@ def handle_64_channel_case(raw, subject_id):
         The subject ID.
     """
     # Check if the data is from the 64 channel EEG cap
-    if {"VEO", "VEOG"}.issubset(set(raw.ch_names)):
+    if {"VEO"}.issubset(set(raw.ch_names)) or {"VEOG"}.issubset(set(raw.ch_names)):
         # Rename channels
         raw.rename_channels({"VEO" if "VEO" in raw.ch_names else "VEOG": "EOG1"})
         raw.rename_channels({"HEO" if "HEO" in raw.ch_names else "HEOG": "EOG2"})
-        raw.set_channel_type({"EOG1": "EOG", "EOG2": "EOG"})
+        raw.set_channel_types({"EOG1": "eog", "EOG2": "eog"})
 
         # Drop non-EEG channels
         non_eeg_chs = ["EKG", "EMG", "Trigger"]
@@ -463,13 +463,13 @@ def handle_64_channel_case(raw, subject_id):
             raw.drop_channels(["FT7", "FT8", "PO5", "PO6"])
 
         # Set montage
-        set_montage(raw, "../montages/Hydro_Neo_Net_64_xyz_cms_No_FID.sfp")
+        set_custom_montage(raw, CFGLog["parameters"]["64_channel_montage_file_path"])
 
     # Check if the data is from the gTec cap
     elif "AF8" in raw.ch_names:
         # Rename channels
         raw.rename_channels({"65": "EOG1", "66": "EOG2"})
-        raw.set_channel_type({"EOG1": "EOG", "EOG2": "EOG"})
+        raw.set_channel_types({"EOG1": "eog", "EOG2": "eog"})
 
         # Drop numeric channels
         raw.drop_channels([ch for ch in raw.ch_names if ch.isnumeric()])
@@ -498,7 +498,9 @@ def handle_64_channel_case(raw, subject_id):
             raw.drop_channels(["A1", "A2"])
 
         # Set montage
-        set_montage(raw, montage_1020_new)
+        raw.set_montage(montage_1020_new)
+    else:
+        raise ValueError(f"Could not determine montage/cap for subject {subject_id}")
 
     return raw
 
@@ -517,8 +519,9 @@ def resample_data(raw):
 
 def find_and_interpolate_bad_channels(raw):
     raw_pyprep = NoisyChannels(raw, random_state=RANDOM_STATE)
-    raw_pyprep.find_all_bads(ransac=False, channel_wise=False, max_chunk_size=None)
+    raw_pyprep.find_all_bads(ransac=True, channel_wise=False, max_chunk_size=None)
     raw.info["bads"] = raw_pyprep.get_bads()
+    print(f"Bad channels: {raw.info['bads']}")
     raw.interpolate_bads()
 
 
@@ -534,10 +537,9 @@ def fit_ica(raw, subject_id):
         max_iter="auto",
     )
     ica.fit(raw)
-
+    return ica
 
 def find_eog_artifacts(raw, subject_id):
-    print(raw.ch_names)
     if "EOG" in raw.ch_names:
         print(f"{subject_id}\nfinding EOG artifacts...")
         try:
@@ -545,10 +547,6 @@ def find_eog_artifacts(raw, subject_id):
             ICA.exclude = eog_indices
         except ValueError:
             ICA.exclude = [0, 1]
-
-
-def apply_ica(raw, subject_id):
-    ICA.apply(raw)
 
 
 def inspect_data(raw, subject_id):

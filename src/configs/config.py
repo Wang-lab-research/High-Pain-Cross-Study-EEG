@@ -127,6 +127,12 @@ CFGLog = {
             "superiorfrontal-rh",  # Right Insula, Right DL-PFC
             "medialorbitofrontal-rh",  # Right Medial-OFC",
         ],
+        "32_channel_montage_file_path": os.path.join(
+            PARENT_PATH, f"{AUTHOR}/Code/eeg_toolkit/montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp"
+        ),
+        "64_channel_montage_file_path": os.path.join(
+            PARENT_PATH, f"{AUTHOR}/Code/eeg_toolkit/montages/Hydro_Neo_Net_64_xyz_cms.sfp"
+        ),
         "ch_names": [
             "Fp1",
             "Fpz",

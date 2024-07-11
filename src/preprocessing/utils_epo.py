@@ -530,6 +530,7 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
         cleaned_events, stimulus_indices = correct_missing_pinpricks(
             cleaned_events, key_wo_pp_indices, stimulus_indices
         )
+    event_samples = [el[0] for el in cleaned_events[stimulus_indices]]
 
     # Get stimulus labels and pain ratings
     df = load_pain_ratings(data_path, sub_id)
@@ -564,6 +565,7 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     )
     stimulus_labels = np.delete(corrected_stimulus_labels, dropped_epochs, axis=0)
     pain_ratings = np.delete(corrected_pain_ratings, dropped_epochs, axis=0)
+    event_samples = np.delete(event_samples, dropped_epochs, axis=0)
 
     # Print length of each
     print(
@@ -575,4 +577,4 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     # Z-score stimulus epochs
     zscored_epochs = zscore_epochs(corrected_stim_epochs)
 
-    return (zscored_epochs, stimulus_labels, pain_ratings)
+    return (zscored_epochs, stimulus_labels, pain_ratings, event_samples)
