@@ -10,117 +10,6 @@ RESAMPLE_FREQ = CFGLog["parameters"]["sfreq"]
 RANDOM_STATE = CFGLog["parameters"]["random_seed"]
 
 
-def get_stimulus_epochs(
-    epochs,
-    event_event_values,
-    event_keys,
-    cleaned_events,
-    min_duration_stim=320,
-    max_duration_stim=1800,
-    gap_iti=100,
-):
-    """
-    Find stimulus epochs in epochs data.
-
-    Args:
-        epochs (mne.Epochs): The epochs data.
-        event_event_values (list): The event values.
-        event_keys (list): The event keys.
-        cleaned_events (list): The cleaned events.
-        min_duration_stim (int): The minimum duration of stimulus in ms.
-        max_duration_stim (int): The maximum duration of stimulus in ms.
-        gap_iti (int): The intertrial interval.
-
-    Returns:
-        tuple: A tuple of stimulus events, key without pinprick events, key without pinprick samples in ms,
-        key to pinprick lag in ms, pinprick up-down duration in ms, and ITI-stimulus gap in ms.
-    """
-    # Initialize variables to store results
-    stimulus_events = []
-    key_without_pp_events = []
-    key_without_pp_samps_to_ms = []
-    key_to_pp_lag = []
-    pp_updown_duration = []
-    iti_stim_gap = []
-
-    # Define keyboard and pinprick ids
-    keyboard_ids = range(3, 9)
-    pinprick_ids = range(10, 14)
-
-    # Iterate over epochs
-    for i in range(len(epochs) - 1):
-        # Find current and next event positions in event_event_values
-        current_position = event_event_values.index(cleaned_events[i][-1])
-        current_key_str = event_keys[current_position]
-        current_value = event_event_values[current_position]
-
-        next_position = event_event_values.index(cleaned_events[i + 1][-1])
-        next_value = event_event_values[next_position]
-
-        # Check if there is a stimulus event
-        if (
-            10 in event_event_values or 12 in event_event_values
-        ) and 3 in event_event_values:
-            # Check if current event is a keyboard event and next event is a pinprick event
-            if current_value in keyboard_ids and next_value in pinprick_ids:
-                # Add stimulus event to the list
-                stimulus_events.append((i + 1, current_key_str))
-                # Calculate key to pinprick lag in ms
-                key_to_pp_lag.append(
-                    (cleaned_events[i + 1][0] - cleaned_events[i][0]) * SAMPS_TO_MS
-                )
-
-            # Check if current event is a keyboard event and next event is not a pinprick event
-            elif current_value in keyboard_ids and next_value not in pinprick_ids:
-                # Add key without pinprick event to the list
-                key_without_pp_events.append((i, current_key_str))
-                # Add key without pinprick samples in ms to the list
-                key_without_pp_samps_to_ms.append(cleaned_events[i][0] * SAMPS_TO_MS)
-
-        # Check if there is no stimulus event
-        elif 10 not in event_event_values or 12 not in event_event_values:
-            # Check if current event is a keyboard event
-            if current_value in keyboard_ids:
-                # Add stimulus event to the list
-                stimulus_events.append((i, current_key_str))
-
-        # Check if there is no pinprick event
-        elif 3 not in event_event_values:
-            # Check if there is a stimulus event
-            if (
-                (current_value == 10 or current_value == 12)
-                and (next_value == 11 or next_value == 13)
-                and (
-                    (cleaned_events[i + 1][0] - cleaned_events[i][0])
-                    > min_duration_stim * MS_TO_SAMP
-                )
-                and (
-                    (cleaned_events[i + 1][0] - cleaned_events[i][0])
-                    < max_duration_stim * MS_TO_SAMP
-                )
-            ):
-                # Add stimulus event to the list
-                stimulus_events.append(i)
-                # Calculate pinprick up-down duration in ms
-                pp_updown_duration.append(
-                    (cleaned_events[i + 1][0] - cleaned_events[i][0]) * SAMPS_TO_MS
-                )
-                # Calculate ITI-stimulus gap in ms
-                iti_stim_gap.append(
-                    (cleaned_events[i][0] - cleaned_events[i - 1][0]) * SAMPS_TO_MS
-                )
-
-    # Return the results
-    return (
-        stimulus_events,
-        key_without_pp_events,
-        key_without_pp_samps_to_ms,
-        key_to_pp_lag,
-        pp_updown_duration,
-        iti_stim_gap,
-    )
-
-
 def get_stimulus_labels(stimulus_labels, event_values):
     """
     This function takes in a list of stimulus labels and a list of event values
@@ -449,6 +338,117 @@ def zscore_epochs(epochs):
         data=zscores, info=info, tmin=epochs.tmin, event_id=epochs.event_id
     )
     return zscored_epochs
+
+
+def get_stimulus_epochs(
+    epochs,
+    event_event_values,
+    event_keys,
+    cleaned_events,
+    min_duration_stim=320,
+    max_duration_stim=1800,
+    gap_iti=100,
+):
+    """
+    Find stimulus epochs in epochs data.
+
+    Args:
+        epochs (mne.Epochs): The epochs data.
+        event_event_values (list): The event values.
+        event_keys (list): The event keys.
+        cleaned_events (list): The cleaned events.
+        min_duration_stim (int): The minimum duration of stimulus in ms.
+        max_duration_stim (int): The maximum duration of stimulus in ms.
+        gap_iti (int): The intertrial interval.
+
+    Returns:
+        tuple: A tuple of stimulus events, key without pinprick events, key without pinprick samples in ms,
+        key to pinprick lag in ms, pinprick up-down duration in ms, and ITI-stimulus gap in ms.
+    """
+    # Initialize variables to store results
+    stimulus_events = []
+    key_without_pp_events = []
+    key_without_pp_samps_to_ms = []
+    key_to_pp_lag = []
+    pp_updown_duration = []
+    iti_stim_gap = []
+
+    # Define keyboard and pinprick ids
+    keyboard_ids = range(3, 9)
+    pinprick_ids = range(10, 14)
+
+    # Iterate over epochs
+    for i in range(len(epochs) - 1):
+        # Find current and next event positions in event_event_values
+        current_position = event_event_values.index(cleaned_events[i][-1])
+        current_key_str = event_keys[current_position]
+        current_value = event_event_values[current_position]
+
+        next_position = event_event_values.index(cleaned_events[i + 1][-1])
+        next_value = event_event_values[next_position]
+
+        # Check if there is a stimulus event
+        if (
+            10 in event_event_values or 12 in event_event_values
+        ) and 3 in event_event_values:
+            # Check if current event is a keyboard event and next event is a pinprick event
+            if current_value in keyboard_ids and next_value in pinprick_ids:
+                # Add stimulus event to the list
+                stimulus_events.append((i + 1, current_key_str))
+                # Calculate key to pinprick lag in ms
+                key_to_pp_lag.append(
+                    (cleaned_events[i + 1][0] - cleaned_events[i][0]) * SAMPS_TO_MS
+                )
+
+            # Check if current event is a keyboard event and next event is not a pinprick event
+            elif current_value in keyboard_ids and next_value not in pinprick_ids:
+                # Add key without pinprick event to the list
+                key_without_pp_events.append((i, current_key_str))
+                # Add key without pinprick samples in ms to the list
+                key_without_pp_samps_to_ms.append(cleaned_events[i][0] * SAMPS_TO_MS)
+
+        # Check if there is no stimulus event
+        elif 10 not in event_event_values or 12 not in event_event_values:
+            # Check if current event is a keyboard event
+            if current_value in keyboard_ids:
+                # Add stimulus event to the list
+                stimulus_events.append((i, current_key_str))
+
+        # Check if there is no pinprick event
+        elif 3 not in event_event_values:
+            # Check if there is a stimulus event
+            if (
+                (current_value == 10 or current_value == 12)
+                and (next_value == 11 or next_value == 13)
+                and (
+                    (cleaned_events[i + 1][0] - cleaned_events[i][0])
+                    > min_duration_stim * MS_TO_SAMP
+                )
+                and (
+                    (cleaned_events[i + 1][0] - cleaned_events[i][0])
+                    < max_duration_stim * MS_TO_SAMP
+                )
+            ):
+                # Add stimulus event to the list
+                stimulus_events.append(i)
+                # Calculate pinprick up-down duration in ms
+                pp_updown_duration.append(
+                    (cleaned_events[i + 1][0] - cleaned_events[i][0]) * SAMPS_TO_MS
+                )
+                # Calculate ITI-stimulus gap in ms
+                iti_stim_gap.append(
+                    (cleaned_events[i][0] - cleaned_events[i - 1][0]) * SAMPS_TO_MS
+                )
+
+    # Return the results
+    return (
+        stimulus_events,
+        key_without_pp_events,
+        key_without_pp_samps_to_ms,
+        key_to_pp_lag,
+        pp_updown_duration,
+        iti_stim_gap,
+    )
 
 
 def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):

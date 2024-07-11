@@ -359,7 +359,7 @@ def remove_trailing_zeros(raw, subject_id):
             include_tmax=False,
         )
 
-    return raw, trailing_zeroes_present
+    return raw
 
 
 def get_binary_pain_trials(
@@ -517,7 +517,7 @@ def resample_data(raw):
 
 def find_and_interpolate_bad_channels(raw):
     raw_pyprep = NoisyChannels(raw, random_state=RANDOM_STATE)
-    raw_pyprep.find_all_bads(ransac=True, channel_wise=False, max_chunk_size=None)
+    raw_pyprep.find_all_bads(ransac=False, channel_wise=False, max_chunk_size=None)
     raw.info["bads"] = raw_pyprep.get_bads()
     raw.interpolate_bads()
 

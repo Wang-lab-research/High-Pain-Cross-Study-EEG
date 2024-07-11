@@ -113,7 +113,7 @@ class Subject:
             self.save(self.pain_ratings, "pain_ratings")
         else:
             self.epochs = self.load_epochs()
-            self.load_labels_and_ratings(self.preprocessed_data_path)
+            self.load_epochs_info(self.preprocessed_data_path)
 
     def get_stc_eyes_open(self):
         # TODO add if not self.pkl_exists("stc_eyes_open"):
@@ -126,7 +126,7 @@ class Subject:
 
         self.save(stc_epochs, "stc_epochs")
 
-    def load_labels_and_ratings(self, preprocessed_data_path=None):
+    def load_epochs_info(self, preprocessed_data_path=None):
         if preprocessed_data_path is not None:
             self.stimulus_labels = sio.loadmat(
                 os.path.join(
@@ -137,6 +137,9 @@ class Subject:
                 os.path.join(
                     preprocessed_data_path, f"{self.subject_id}_pain_ratings.mat"
                 )
+            )
+            self.epo_times = sio.loadmat(
+                os.path.join(preprocessed_data_path, f"{self.subject_id}_epo_times.mat")
             )
         else:
             self.stimulus_labels = pickle.load(
@@ -155,6 +158,14 @@ class Subject:
                         f"{self.subject_id}_pain_ratings.pkl",
                     ),
                     "rb",
+                )
+            )
+            self.epo_times = pickle.load(
+                open(
+                    os.path.join(
+                        CFGLog["output"]["parent_save_path"],
+                        f"{self.subject_id}_epo_times.pkl",
+                    )
                 )
             )
 
