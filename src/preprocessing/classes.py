@@ -67,10 +67,10 @@ class Subject:
         print(f"Loaded raw for subject {self.subject_id}")
 
     def load_preprocessed(self):
-        self.preprocessed_raw = mne.io.read_raw_fif(
-            f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed-raw.fif",
+        self.preprocessed_raw = pickle.load(
+            f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed_raw.pkl",
         )
-        print(f"Loaded preprocessed for subject {self.subject_id}")
+        print(f"Loaded preprocessed entire for subject {self.subject_id}")
 
     def load_epochs(self):
         if self.preprocessed_data_path is not None:
@@ -181,7 +181,7 @@ class Subject:
                 )
             )
 
-    def save(self, data_object, object_name: str, as_mat: bool = False):
+    def save(self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False):
         if object_name == "stc_eyes_open":
             save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
         elif object_name == "stc_epochs":
@@ -194,6 +194,9 @@ class Subject:
         if as_mat:
             save_file_path = save_file_path.replace(".pkl", ".mat")
             sio.savemat(save_file_path, {object_name: data_object})
+        if as_vhdr:
+            save_file_path = save_file_path.replace(".pkl", ".vhdr")
+            data_object.export(save_file_path)
         else:
             with open(save_file_path, "wb") as file:
                 pickle.dump(data_object, file)
