@@ -211,6 +211,19 @@ class Subject:
 
         save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
         return os.path.exists(save_file_path)
+    
+    def resample_func(self, old_freq, new_freq):
+        """ 
+        Adjust the time for resampling frequency of 600 Hz
+        Reassign the event samples with new resampling
+        Return the new times
+        """
+        new_samples = self.event_samples / old_freq * new_freq
+        self.event_samples = new_samples
+        self.save(new_samples, 'event_samples')
+        self.save(new_samples, 'event_samples', as_mat=True)
+    
+
 
 
 class Group:
