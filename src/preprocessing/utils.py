@@ -519,7 +519,7 @@ def resample_data(raw):
 
 def find_and_interpolate_bad_channels(raw):
     raw_pyprep = NoisyChannels(raw, random_state=RANDOM_STATE)
-    raw_pyprep.find_all_bads(ransac=True, channel_wise=False, max_chunk_size=None)
+    raw_pyprep.find_all_bads(ransac=False, channel_wise=False, max_chunk_size=None)
     raw.info["bads"] = raw_pyprep.get_bads()
     print(f"Bad channels: {raw.info['bads']}")
     raw.interpolate_bads()
@@ -539,6 +539,7 @@ def fit_ica(raw, subject_id):
     ica.fit(raw)
     return ica
 
+
 def find_eog_artifacts(raw, subject_id):
     if "EOG" in raw.ch_names:
         print(f"{subject_id}\nfinding EOG artifacts...")
@@ -550,10 +551,9 @@ def find_eog_artifacts(raw, subject_id):
 
 
 def inspect_data(raw, subject_id):
-    print(raw.ch_names)
-    print("\nNumber of remaining channels: ", len(raw.ch_names) - len(raw.info["bads"]))
-    print("\nDropped channels: ", raw.info["bads"])
-    print("Raw data preprocessing complete.")
+    print(f"Subject: {subject_id}")
+    print("Number of remaining channels: ", len(raw.ch_names) - len(raw.info["bads"]))
+    print("Dropped channels: ", raw.info["bads"])
 
 
 def crop_resting_EO(
