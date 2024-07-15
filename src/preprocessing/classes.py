@@ -1,4 +1,5 @@
 from glob import glob
+import os
 import pickle
 import scipy.io as sio
 import numpy as np
@@ -7,45 +8,54 @@ from tabulate import tabulate
 from typing import Dict, List, Union
 from src.configs.config import CFGLog
 from src.preprocessing import utils as pre_utils
+from src.preprocessing import utils_epo as pre_utils_epo
 
 
 class Subject:
     """
-    Individual level subject class.
+    Individual level subject class for performing preprocessing.
     Attributes:
         subject_id
         group
         raw
+        raw_file_path
+        preprocessed_raw
+        preprocessed_data_path
         eyes_open
         epochs
         stimulus_labels
-        stc
-        path
+        pain_ratings
+        event_samples
+        stc_eyes_open
+        stc_epochs
     Methods:
-        get_cleaned_resting()
+        load_raw()
+        preprocess()
+        get_cleaned_eyes_open()
         get_cleaned_epochs()
-        get_stc_resting()
+        get_stc_eyes_open()
         get_stc_epochs()
-
+        load_epochs()
+        load_epochs_info()
+        save()
+        pkl_exists()
     """
 
-    def __init__(self, subject_id: str, group: str):
+    def __init__(self, subject_id: str, group: str, preprocessed_data_path: str = None):
         assert isinstance(subject_id, str), "Subject ID must be a string"
         self.subject_id = subject_id
         self.group = group
 
-        # EDF file path
+        # data paths
         data_dir = CFGLog["data"][group]["path"]
-        self.raw_file_path = pre_utils.get_raw_data_file_path(
-            subject_id=subject_id, data_path=data_dir
+        self.subject_folder, self.raw_file_path = pre_utils.get_raw_path(
+            subject_id=subject_id, data_dir=data_dir
         )
-
-        # data
-        self.raw = None
-        self.eyes_open = None
-        self.epochs = None
-        self.stimulus_labels = None
-        self._data_path = data_dir
+        self.preprocessed_data_path = (
+            preprocessed_data_path
+            if preprocessed_data_path is not None
+            else CFGLog["output"]["parent_save_path"]
+        )
 
     def __str__(self):
         table = [[self.subject_id, self.group]]
@@ -56,33 +66,151 @@ class Subject:
         self.raw = mne.io.read_raw_edf(self.raw_file_path, preload=True)
         print(f"Loaded raw for subject {self.subject_id}")
 
-    def preprocess(self):
-        # parameters for to_raw:data_path, sub_id, save_path, csv_path, include_noise
-        # self.raw.to_raw(self.data_path, self.subject_id, self.data_path, self.data_path, True)
-        pass
+    def load_preprocessed(self):
+        self.preprocessed_raw = pickle.load(
+            f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed_raw.pkl",
+        )
+        print(f"Loaded preprocessed entire for subject {self.subject_id}")
 
-    def get_cleaned_resting(self):
-        # For Rachel to complete - pause this task
-        # Input: raw from EDF file
+    def load_epochs(self):
+        if self.preprocessed_data_path is not None:
+            self.epochs = mne.read_epochs(
+                f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed-epo.fif",
+            )
+            self.epochs.data = self.epochs.get_data()
+        else:
+            raise ValueError("Subject processed path not defined.")
+
+    def preprocess(self):
+        if not self.pkl_exists("preprocessed_raw"):
+            self.load_raw()
+            self.preprocessed_raw = pre_utils.preprocess_entire(
+                self.raw, self.subject_id
+            )
+            self.save(self.preprocessed_raw, "preprocessed_raw")
+        else:
+            self.load_preprocessed()
+
+    def get_cleaned_eyes_open(self):
+        if not self.pkl_exists("eyes_open"):
+            pass
+            self.save(self.eyes_open, "eyes_open")
+        else:
+            self.eyes_open = self.load("eyes_open")
+        # Input: raw from self.raw
         # Steps:
         # 1. Identify eyes open time frames
         # 2. Remove any eroneous KB markers/triggers
         # 2. Crop to just eyes open
         # Output: saved .fif file with just eyes open
-        #   and return just resting data
-        pass
+        #   and return just eyes_open data
 
-    def get_cleaned_epochs(self):
-        pass
+    def get_cleaned_epochs(self, TIME_RANGE, PERISTIM_TIME_WIN):
+        if not self.pkl_exists("epochs"):
+            self.epochs, self.stimulus_labels, self.pain_ratings, self.event_samples = (
+                pre_utils_epo.preprocess_epochs(
+                    self.preprocessed_raw,
+                    self.subject_id,
+                    self.subject_folder,
+                    TIME_RANGE,
+                    PERISTIM_TIME_WIN,
+                )
+            )
+            for as_mat in [False, True]:
+                self.save(self.epochs, "epochs", as_mat=as_mat)
+                self.save(self.stimulus_labels, "stimulus_labels", as_mat=as_mat)
+                self.save(self.pain_ratings, "pain_ratings", as_mat=as_mat)
+                self.save(self.event_samples, "event_samples", as_mat=as_mat)
+        else:
+            self.epochs = self.load_epochs()
+            self.load_epochs_info(self.preprocessed_data_path)
 
-    def get_stc_resting(self):
-        pass
+    def get_stc_eyes_open(self):
+        # TODO add if not self.pkl_exists("stc_eyes_open"):
+        stc_eyes_open = None
+        self.save(stc_eyes_open, "stc_eyes_open")
 
     def get_stc_epochs(self):
-        pass
+        # TODO add if not self.pkl_exists("stc_epochs"):
+        stc_epochs = None
 
-    def save(self):
-        pass
+        self.save(stc_epochs, "stc_epochs")
+
+    def load_epochs_info(self, preprocessed_data_path=None):
+        if preprocessed_data_path is not None:
+            self.stimulus_labels = sio.loadmat(
+                os.path.join(
+                    preprocessed_data_path, f"{self.subject_id}_stimulus_labels.mat"
+                )
+            )
+            self.pain_ratings = sio.loadmat(
+                os.path.join(
+                    preprocessed_data_path, f"{self.subject_id}_pain_ratings.mat"
+                )
+            )
+            self.event_samples = sio.loadmat(
+                os.path.join(
+                    preprocessed_data_path, f"{self.subject_id}_event_samples.mat"
+                )
+            )
+        else:
+            self.stimulus_labels = pickle.load(
+                open(
+                    os.path.join(
+                        CFGLog["output"]["parent_save_path"],
+                        f"{self.subject_id}_stim_labels.pkl",
+                    ),
+                    "rb",
+                )
+            )
+            self.pain_ratings = pickle.load(
+                open(
+                    os.path.join(
+                        CFGLog["output"]["parent_save_path"],
+                        f"{self.subject_id}_pain_ratings.pkl",
+                    ),
+                    "rb",
+                )
+            )
+            self.event_samples = pickle.load(
+                open(
+                    os.path.join(
+                        CFGLog["output"]["parent_save_path"],
+                        f"{self.subject_id}_event_samples.pkl",
+                    )
+                )
+            )
+
+    def save(self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False):
+        if object_name == "stc_eyes_open":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
+        elif object_name == "stc_epochs":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["epochs"]
+        else:
+            save_path = CFGLog["output"]["parent_save_path"]
+
+        save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
+
+        if as_mat:
+            save_file_path = save_file_path.replace(".pkl", ".mat")
+            sio.savemat(save_file_path, {object_name: data_object})
+        if as_vhdr:
+            save_file_path = save_file_path.replace(".pkl", ".vhdr")
+            data_object.export(save_file_path)
+        else:
+            with open(save_file_path, "wb") as file:
+                pickle.dump(data_object, file)
+
+    def pkl_exists(self, object_name: str):
+        if object_name == "stc_eyes_open":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
+        elif object_name == "stc_epochs":
+            save_path = CFGLog["output"]["parent_stc_save_path"]["epochs"]
+        else:
+            save_path = CFGLog["output"]["parent_save_path"]
+
+        save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
+        return os.path.exists(save_file_path)
 
 
 class Group:
@@ -108,7 +236,7 @@ class SubjectProcessor:
         self.paths_dict = paths_dict
         self.processed_data_path = self.paths_dict["processed_data_path"]
         self.stc_path = self.paths_dict["stc_path"]
-        self.EO_resting_data_path = self.paths_dict["EO_resting_data_path"]
+        self.EO_eyes_open_data_path = self.paths_dict["EO_eyes_open_data_path"]
         self.zscored_epochs_data_path = self.paths_dict["zscored_epochs_data_path"]
 
         self.sfreq = 400  # Hz
@@ -116,72 +244,7 @@ class SubjectProcessor:
 
     def _fill_nan_channels(self, epochs):
         incomplete_ch_names = epochs.info["ch_names"]
-        complete_ch_names = [
-            "Fp1",
-            "Fpz",
-            "Fp2",
-            "AF3",
-            "AF4",
-            "F11",
-            "F7",
-            "F5",
-            "F3",
-            "F1",
-            "Fz",
-            "F2",
-            "F4",
-            "F6",
-            "F8",
-            "F12",
-            "FT11",
-            "FC5",
-            "FC3",
-            "FC1",
-            "FCz",
-            "FC2",
-            "FC4",
-            "FC6",
-            "FT12",
-            "T7",
-            "C5",
-            "C3",
-            "C1",
-            "Cz",
-            "C2",
-            "C4",
-            "C6",
-            "T8",
-            "TP7",
-            "CP5",
-            "CP3",
-            "CP1",
-            "CPz",
-            "CP2",
-            "CP4",
-            "CP6",
-            "TP8",
-            "M1",
-            "M2",
-            "P7",
-            "P5",
-            "P3",
-            "P1",
-            "Pz",
-            "P2",
-            "P4",
-            "P6",
-            "P8",
-            "PO7",
-            "PO3",
-            "POz",
-            "PO4",
-            "PO8",
-            "O1",
-            "Oz",
-            "O2",
-            "Cb1",
-            "Cb2",
-        ]
+        complete_ch_names = CFGLog["parameters"]["ch_names"]
         complete_ch_names = [ch_name.upper() for ch_name in complete_ch_names]
         missing_ch_ids = [
             i
@@ -252,7 +315,7 @@ class SubjectProcessor:
         epochs_data_arrays = []
         sem_epochs_per_sub = []
         stc_epo_arrays = []
-        stc_resting_arrays = []
+        stc_eyes_open_arrays = []
         for subject in subjects_list:
             this_sub_id = subject.subject_id
             epochs, epochs, sem = self._load_epochs(this_sub_id)
@@ -262,16 +325,16 @@ class SubjectProcessor:
             stc_epo_array = self._load_stc_epochs(this_sub_id)
             stc_epo_arrays.append(stc_epo_array)
 
-            stc_resting = None
-            stc_resting_arrays.append(stc_resting)
+            stc_eyes_open = None
+            stc_eyes_open_arrays.append(stc_eyes_open)
 
         # combine data across subjects
         stc_epo_array = np.nanmean(np.array(stc_epo_arrays), axis=0)
         if stc_epo_array.ndim != 3:
             stc_epo_array = np.expand_dims(stc_epo_array, axis=0)
-        stc_resting = (
-            np.nanmean(np.array(stc_resting_arrays), axis=0)
-            if stc_resting is not None
+        stc_eyes_open = (
+            np.nanmean(np.array(stc_eyes_open_arrays), axis=0)
+            if stc_eyes_open is not None
             else None
         )
         epochs_data_arrays = np.array(epochs_data_arrays)
@@ -282,5 +345,5 @@ class SubjectProcessor:
             epochs_data_arrays,
             sem_epochs_per_sub,
             stc_epo_array,
-            stc_resting,
+            stc_eyes_open,
         )
