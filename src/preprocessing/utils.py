@@ -20,23 +20,6 @@ def clear_output():
     display.clear_output(wait=True)
 
 
-def load_raw_data(data_directory, subject_id, eog_channel):
-    """
-    Load raw EDF data with specified EOG channel.
-    """
-    subject_folder = next(
-        folder for folder in os.listdir(data_directory) if folder.startswith(subject_id)
-    )
-    eeg_data_file = next(
-        file
-        for file in os.listdir(os.path.join(data_directory, subject_folder))
-        if file.endswith((".edf", ".EDF"))
-    )
-    eeg_data_path = os.path.join(data_directory, subject_folder, eeg_data_file)
-
-    return mne.io.read_raw_edf(eeg_data_path, eog=[eog_channel], preload=True)
-
-
 def set_custom_montage(mne_object, montage_path):
     custom_montage = mne.channels.read_custom_montage(montage_path)
     mne_object.set_montage(custom_montage, on_missing="ignore")
@@ -133,7 +116,8 @@ def get_raw_path(subject_id: str, data_dir: str) -> tuple:
         ValueError: If the subject ID is not found in the data path or if more than one EDF file is found.
     """
     subject_folder = next(
-        (folder for folder in os.listdir(data_dir) if subject_id in folder), None
+        (folder for folder in os.listdir(data_dir) if folder.startswith(subject_id)),
+        None,
     )
     if subject_folder is None:
         raise ValueError(f"Subject ID {subject_id} not found in {data_dir}.")
@@ -320,7 +304,7 @@ def get_cropped_resting_EEGs(subject_id, raw, csv_path, save_path, include_noise
     return EC_cropped, noise_cropped, EO_cropped
 
 
-def remove_trailing_zeros(raw, subject_id):
+def remove_trailing_zeros(raw, subject_id, channel_threshold=0.5):
     """
     Removes trailing zeros from raw data channels.
 
@@ -330,11 +314,11 @@ def remove_trailing_zeros(raw, subject_id):
 
     Returns:
     - raw: The potentially modified raw data object after cropping.
-    - trailing_zeroes_present: A boolean indicating if cropping was performed.
     """
     raw_duration = raw.times[-1]
     raw_data = raw.get_data()
     trailing_zeroes_present = False
+    channels_with_trailing_zeros = 0
 
     for channel_data in raw_data:
         consecutive_zeros = 0
@@ -344,18 +328,23 @@ def remove_trailing_zeros(raw, subject_id):
             else:
                 consecutive_zeros = 0
             if consecutive_zeros >= 100:
-                start_index = i - (consecutive_zeros - 1)
-                end_index = len(channel_data)
-                trailing_zeros_duration = (end_index - start_index) / raw.info["sfreq"]
-                trailing_zeroes_present = True
+                channels_with_trailing_zeros += 1
                 break
-        if trailing_zeroes_present:
-            break
+
+    # Check if the number of channels with trailing zeros exceeds the threshold
+    if channels_with_trailing_zeros >= channel_threshold * raw_data.shape[0]:
+        trailing_zeroes_present = True
 
     if trailing_zeroes_present:
+        start_index = len(raw_data[0]) - consecutive_zeros
+        end_index = len(raw_data[0])
+        trailing_zeros_duration = (end_index - start_index) / raw.info["sfreq"]
+        tmax = raw_duration - np.ceil(trailing_zeros_duration)
+        if tmax <= 0:
+            tmax = raw.times[1]  # Ensure tmax is valid
         raw = raw.crop(
             tmin=0,
-            tmax=raw_duration - np.ceil(trailing_zeros_duration),
+            tmax=tmax,
             include_tmax=False,
         )
 
@@ -399,12 +388,13 @@ def get_binary_pain_trials(
 
 
 def preprocess_entire(raw, subject_id):
-    raw = remove_trailing_zeros(raw, subject_id)
+    raw = remove_trailing_zeros(raw, subject_id, channel_threshold=0.5)
 
     if "X" in raw.ch_names and len(raw.ch_names) < 64:
         rename_and_set_channel_types_32(raw)
         drop_unused_channels_32(raw)
-        set_custom_montage(raw, "../montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp")
+        set_custom_montage(raw, CFGLog["parameters"]["32_channel_montage_file_path"])
+        raise ValueError("32 channel data detected")
     else:
         handle_64_channel_case(raw, subject_id)
 
@@ -425,15 +415,14 @@ def preprocess_entire(raw, subject_id):
 
 
 def rename_and_set_channel_types_32(raw):
-    raw.rename_channels({"Fp1": "eog"})
-    raw.set_channel_types({"EOG": "eog"})
+    raw.rename_channels({"Fp1": "EOG1"})
+    raw.set_channel_types({"EOG1": "eog"})
 
 
 def drop_unused_channels_32(raw):
     non_eeg_chs = ["X", "Y", "Z"] if "X" in raw.ch_names else []
     non_eeg_chs += ["Oth4"] if "Oth4" in raw.ch_names else []
     raw.drop_channels(non_eeg_chs)
-    set_custom_montage(raw, CFGLog["parameters"]["32_channel_montage_file_path"])
 
 
 def handle_64_channel_case(raw, subject_id):
@@ -541,10 +530,10 @@ def fit_ica(raw, subject_id):
 
 
 def find_eog_artifacts(raw, subject_id):
-    if "EOG" in raw.ch_names:
+    if "EOG1" in raw.ch_names:
         print(f"{subject_id}\nfinding EOG artifacts...")
         try:
-            eog_indices, eog_scores = ICA.find_bads_eog(raw, threshold="auto")
+            eog_indices, eog_scores = ICA.find_bads_eog(raw, verbose=True)
             ICA.exclude = eog_indices
         except ValueError:
             ICA.exclude = [0, 1]

@@ -47,15 +47,12 @@ class Subject:
         self.group = group
 
         # data paths
-        data_dir = CFGLog["data"][group]["path"]
+        data_dir = os.path.abspath(CFGLog["data"][group]["path"])
+        
         self.subject_folder, self.raw_file_path = pre_utils.get_raw_path(
             subject_id=subject_id, data_dir=data_dir
         )
-        self.preprocessed_data_path = (
-            preprocessed_data_path
-            if preprocessed_data_path is not None
-            else CFGLog["output"]["parent_save_path"]
-        )
+        self.preprocessed_data_path = CFGLog["output"]["parent_save_path"]
 
     def __str__(self):
         table = [[self.subject_id, self.group]]
@@ -67,19 +64,21 @@ class Subject:
         print(f"Loaded raw for subject {self.subject_id}")
 
     def load_preprocessed(self):
-        self.preprocessed_raw = pickle.load(
-            f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed_raw.pkl",
+        preprocessed_file_path = os.path.join(
+            self.preprocessed_data_path, f"{self.subject_id}_preprocessed_raw.pkl"
         )
+        with open(preprocessed_file_path, "rb") as file:
+            self.preprocessed_raw = pickle.load(file)
         print(f"Loaded preprocessed entire for subject {self.subject_id}")
 
     def load_epochs(self):
-        if self.preprocessed_data_path is not None:
-            self.epochs = mne.read_epochs(
-                f"{self.preprocessed_data_path}/{self.subject_id}_preprocessed-epo.fif",
-            )
-            self.epochs.data = self.epochs.get_data()
-        else:
-            raise ValueError("Subject processed path not defined.")
+        with open(
+            f"{self.preprocessed_data_path}/{self.subject_id}_epochs.pkl",
+            "rb",
+        ) as file:
+            self.epochs = pickle.load(file)
+        self.epochs.data = self.epochs.get_data(copy=True)
+        print(f"Loaded epochs for subject {self.subject_id}")
 
     def preprocess(self):
         if not self.pkl_exists("preprocessed_raw"):
@@ -88,6 +87,7 @@ class Subject:
                 self.raw, self.subject_id
             )
             self.save(self.preprocessed_raw, "preprocessed_raw")
+            self.save(self.preprocessed_raw, "preprocessed_raw", as_vhdr=True)
         else:
             self.load_preprocessed()
 
@@ -158,7 +158,7 @@ class Subject:
                 open(
                     os.path.join(
                         CFGLog["output"]["parent_save_path"],
-                        f"{self.subject_id}_stim_labels.pkl",
+                        f"{self.subject_id}_stimulus_labels.pkl",
                     ),
                     "rb",
                 )
@@ -177,11 +177,14 @@ class Subject:
                     os.path.join(
                         CFGLog["output"]["parent_save_path"],
                         f"{self.subject_id}_event_samples.pkl",
-                    )
+                    ),
+                    "rb",
                 )
             )
 
-    def save(self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False):
+    def save(
+        self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False
+    ):
         if object_name == "stc_eyes_open":
             save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
         elif object_name == "stc_epochs":
@@ -192,7 +195,7 @@ class Subject:
         save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
 
         if as_mat:
-            save_file_path = save_file_path.replace(".pkl", ".mat")
+            save_file_path = save_file_path.replace(".pkl", "")
             sio.savemat(save_file_path, {object_name: data_object})
         if as_vhdr:
             save_file_path = save_file_path.replace(".pkl", ".vhdr")
@@ -200,8 +203,9 @@ class Subject:
         else:
             with open(save_file_path, "wb") as file:
                 pickle.dump(data_object, file)
+        print(f"Saved {object_name} to {save_file_path}.")
 
-    def pkl_exists(self, object_name: str):
+    def file_exists(self, object_name: str, file_type: str="pkl"):
         if object_name == "stc_eyes_open":
             save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
         elif object_name == "stc_epochs":
@@ -209,21 +213,21 @@ class Subject:
         else:
             save_path = CFGLog["output"]["parent_save_path"]
 
-        save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
+        save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.{file_type}")
         return os.path.exists(save_file_path)
-    
+
     def resample_func(self, old_freq, new_freq):
-        """ 
+        """
         Adjust the time for resampling frequency of 600 Hz
         Reassign the event samples with new resampling
         Return the new times
         """
-        new_samples = self.event_samples / old_freq * new_freq
+        new_samples = (self.event_samples / old_freq.astype(float)) * new_freq.astype(
+            float
+        )
         self.event_samples = new_samples
-        self.save(new_samples, 'event_samples')
-        self.save(new_samples, 'event_samples', as_mat=True)
-    
-
+        self.save(new_samples, "event_samples")
+        self.save(new_samples, "event_samples", as_mat=True)
 
 
 class Group:

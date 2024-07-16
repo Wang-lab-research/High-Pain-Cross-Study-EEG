@@ -56,14 +56,21 @@ CFGLog = {
                     "C9.",
                 ],
             },
-            "path": os.path.join(
-                PARENT_PATH, f"{AUTHOR}/Chronic Low Back Pain Study/Data/Raw/"
+            "path": os.path.abspath(
+                os.path.join(
+                    PARENT_PATH, f"{AUTHOR}/Chronic Low Back Pain Study/Data/Raw/"
+                )
             ),
-            "processed_path": os.path.join(
-                PARENT_PATH, f"{AUTHOR}/Chronic Low Back Pain Study/Data/Processed Data/"
+            "processed_path": os.path.abspath(
+                os.path.join(
+                    PARENT_PATH,
+                    f"{AUTHOR}/Chronic Low Back Pain Study/Data/Processed Data/",
+                )
             ),
-            "epochs_path": os.path.join(
-                PARENT_PATH, f"{AUTHOR}/Chronic Low Back Pain Study/Data/Epochs/"
+            "epochs_path": os.path.abspath(
+                os.path.join(
+                    PARENT_PATH, f"{AUTHOR}/Chronic Low Back Pain Study/Data/Epochs/"
+                )
             ),
         },
         "chronic_pancreatitis": {
@@ -82,9 +89,9 @@ CFGLog = {
                     "014",
                 ],
             },
-            "path": os.path.join(
+            "path": os.path.abspath(os.path.join(
                 PARENT_PATH, f"{AUTHOR}/Pancreatitis Pain Study/Data/Raw/"
-            ),
+            )),
         },
         "lupus": {
             "subject_ids": {
@@ -103,9 +110,9 @@ CFGLog = {
                     "5713",
                 ],
             },
-            "path": os.path.join(
+            "path":  os.path.abspath(os.path.join(
                 PARENT_PATH, f"{AUTHOR}/Lupus EEG Biomarker/Data/Raw/"
-            ),
+            )),
         },
     },
     "parameters": {
@@ -126,11 +133,17 @@ CFGLog = {
             "superiorfrontal-rh",  # Right Insula, Right DL-PFC
             "medialorbitofrontal-rh",  # Right Medial-OFC",
         ],
-        "32_channel_montage_file_path": os.path.join(
-            PARENT_PATH, f"{AUTHOR}/Code/eeg_toolkit/montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp"
+        "32_channel_montage_file_path": os.path.abspath(
+            os.path.join(
+                PARENT_PATH,
+                f"{AUTHOR}/Code/eeg_toolkit/montages/Hydro_Neo_Net_32_xyz_cms_No_Fp1.sfp",
+            )
         ),
-        "64_channel_montage_file_path": os.path.join(
-            PARENT_PATH, f"{AUTHOR}/Code/eeg_toolkit/montages/Hydro_Neo_Net_64_xyz_cms.sfp"
+        "64_channel_montage_file_path": os.path.abspath(
+            os.path.join(
+                PARENT_PATH,
+                f"{AUTHOR}/Code/eeg_toolkit/montages/Hydro_Neo_Net_64_xyz_cms.sfp",
+            )
         ),
         "ch_names": [
             "Fp1",
@@ -302,10 +315,14 @@ CFGLog = {
         },
     },
     "output": {
-        "parent_save_path": "../../data/preprocessed/",
+        "parent_save_path": os.path.abspath("../../data/preprocessed/"),
         "parent_stc_save_path": {
-            "eyes_open": "../../data/preprocessed/source_time_courses/eyes_open",
-            "epochs": "../../data/preprocessed/source_time_courses/epochs/{PERISTIM_TIME_WIN}_sec_time_window",
+            "eyes_open": os.path.abspath(
+                "../../data/preprocessed/source_time_courses/eyes_open"
+            ),
+            "epochs": os.path.abspath(
+                "../../data/preprocessed/source_time_courses/epochs/{PERISTIM_TIME_WIN}_sec_time_window"
+            ),
         },
     },
 }
