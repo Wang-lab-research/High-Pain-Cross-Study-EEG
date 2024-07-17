@@ -83,7 +83,7 @@ CFGLog = {
                     "008",
                     "009",
                     "010",
-                    "011",
+                    # "011", conflated pain of hiccups with pinpricks
                     "012",
                     "013",
                     "014",

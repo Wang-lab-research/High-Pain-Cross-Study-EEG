@@ -137,50 +137,26 @@ class Subject:
         self.save(stc_epochs, "stc_epochs")
 
     def load_epochs_info(self, preprocessed_data_path=None):
-        if preprocessed_data_path is not None:
-            self.stimulus_labels = sio.loadmat(
-                os.path.join(
-                    preprocessed_data_path, f"{self.subject_id}_stimulus_labels.mat"
-                )
+        data_path = preprocessed_data_path or CFGLog["output"]["parent_save_path"]
+
+        file_extension = ".mat" if preprocessed_data_path else ".pkl"
+
+        file_names = [
+            # "stimulus_labels",
+            # "pain_ratings",
+            # "event_samples",
+            "drop_log",
+        ]
+
+        for file_name in file_names:
+            file_path = os.path.join(
+                data_path, f"{self.subject_id}_{file_name}{file_extension}"
             )
-            self.pain_ratings = sio.loadmat(
-                os.path.join(
-                    preprocessed_data_path, f"{self.subject_id}_pain_ratings.mat"
-                )
-            )
-            self.event_samples = sio.loadmat(
-                os.path.join(
-                    preprocessed_data_path, f"{self.subject_id}_event_samples.mat"
-                )
-            )
-        else:
-            self.stimulus_labels = pickle.load(
-                open(
-                    os.path.join(
-                        CFGLog["output"]["parent_save_path"],
-                        f"{self.subject_id}_stimulus_labels.pkl",
-                    ),
-                    "rb",
-                )
-            )
-            self.pain_ratings = pickle.load(
-                open(
-                    os.path.join(
-                        CFGLog["output"]["parent_save_path"],
-                        f"{self.subject_id}_pain_ratings.pkl",
-                    ),
-                    "rb",
-                )
-            )
-            self.event_samples = pickle.load(
-                open(
-                    os.path.join(
-                        CFGLog["output"]["parent_save_path"],
-                        f"{self.subject_id}_event_samples.pkl",
-                    ),
-                    "rb",
-                )
-            )
+
+            if preprocessed_data_path:
+                setattr(self, file_name, sio.loadmat(file_path))
+            else:
+                setattr(self, file_name, pickle.load(open(file_path, "rb")))
 
     def save(
         self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False
