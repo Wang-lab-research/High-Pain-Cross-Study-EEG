@@ -533,7 +533,7 @@ def find_eog_artifacts(raw, subject_id):
     if "EOG1" in raw.ch_names:
         print(f"{subject_id}\nfinding EOG artifacts...")
         try:
-            eog_indices, eog_scores = ICA.find_bads_eog(raw, verbose=True)
+            eog_indices, eog_scores = ICA.find_bads_eog(inst=raw, verbose=True)
             ICA.exclude = eog_indices
         except ValueError:
             ICA.exclude = [0, 1]

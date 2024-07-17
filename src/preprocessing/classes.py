@@ -80,8 +80,8 @@ class Subject:
         self.epochs.data = self.epochs.get_data(copy=True)
         print(f"Loaded epochs for subject {self.subject_id}")
 
-    def preprocess(self):
-        if not self.pkl_exists("preprocessed_raw"):
+    def preprocess(self, overwrite: bool = False):
+        if not self.file_exists("preprocessed_raw", "pkl") or overwrite:
             self.load_raw()
             self.preprocessed_raw = pre_utils.preprocess_entire(
                 self.raw, self.subject_id
