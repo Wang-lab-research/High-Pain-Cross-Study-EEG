@@ -89,9 +89,9 @@ CFGLog = {
                     "014",
                 ],
             },
-            "path": os.path.abspath(os.path.join(
-                PARENT_PATH, f"{AUTHOR}/Pancreatitis Pain Study/Data/Raw/"
-            )),
+            "path": os.path.abspath(
+                os.path.join(PARENT_PATH, f"{AUTHOR}/Pancreatitis Pain Study/Data/Raw/")
+            ),
         },
         "lupus": {
             "subject_ids": {
@@ -110,14 +110,16 @@ CFGLog = {
                     "5713",
                 ],
             },
-            "path":  os.path.abspath(os.path.join(
-                PARENT_PATH, f"{AUTHOR}/Lupus EEG Biomarker/Data/Raw/"
-            )),
+            "path": os.path.abspath(
+                os.path.join(PARENT_PATH, f"{AUTHOR}/Lupus EEG Biomarker/Data/Raw/")
+            ),
         },
     },
     "parameters": {
         "sfreq": 600,
         "random_seed": 42,
+        "tmin": -2.0,
+        "tmax": 1.0,
         "roi_names": [  # Left
             "rostralanteriorcingulate-lh",  # Left Rostral ACC
             "caudalanteriorcingulate-lh",  # Left Caudal ACC
@@ -232,7 +234,7 @@ CFGLog = {
             "low-gamma": [30.0, 58.5],
             "high-gamma": [61.5, 100.0],
         },
-        "events_dict": {
+        "event_id_all": {
             "eyes_closed": {
                 "eyes closed": 1,
                 "Trigger#1": 1,
@@ -312,6 +314,18 @@ CFGLog = {
                 "100320": 12,
                 "1100010": 13,
             },
+        },
+        "event_id": {
+            "hand_high_stim": 3,
+            "hand_med_stim": 4,
+            "hand_low_stim": 5,
+            "back_high_stim": 6,
+            "back_med_stim": 7,
+            "back_low_stim": 8,
+            "pinprick10": 10,
+            "pinprick11": 11,
+            "pinprick12": 12,
+            "pinprick13": 13,
         },
     },
     "output": {

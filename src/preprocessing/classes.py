@@ -6,9 +6,12 @@ import numpy as np
 import mne
 from tabulate import tabulate
 from typing import Dict, List, Union
-from src.configs.config import CFGLog
 from src.preprocessing import utils as pre_utils
 from src.preprocessing import utils_epo as pre_utils_epo
+from src.utils.config import Config
+import src.configs.config as configs
+
+config = Config.from_json(configs.CFGLog)
 
 
 class Subject:
@@ -25,7 +28,7 @@ class Subject:
         epochs
         stimulus_labels
         pain_ratings
-        event_samples
+        events
         stc_eyes_open
         stc_epochs
     Methods:
@@ -47,12 +50,12 @@ class Subject:
         self.group = group
 
         # data paths
-        data_dir = os.path.abspath(CFGLog["data"][group]["path"])
-        
+        data_dir = os.path.abspath(configs.CFGLog["data"][group]["path"])
+
         self.subject_folder, self.raw_file_path = pre_utils.get_raw_path(
             subject_id=subject_id, data_dir=data_dir
         )
-        self.preprocessed_data_path = CFGLog["output"]["parent_save_path"]
+        self.preprocessed_data_path = config.output.parent_save_path
 
     def __str__(self):
         table = [[self.subject_id, self.group]]
@@ -87,7 +90,7 @@ class Subject:
                 self.raw, self.subject_id
             )
             self.save(self.preprocessed_raw, "preprocessed_raw")
-            self.save(self.preprocessed_raw, "preprocessed_raw", as_vhdr=True)
+            self.save(self.preprocessed_raw, "preprocessed_raw", as_vhdr=True, overwrite=True)
         else:
             self.load_preprocessed()
 
@@ -107,7 +110,7 @@ class Subject:
 
     def get_cleaned_epochs(self, TIME_RANGE, PERISTIM_TIME_WIN):
         if not self.pkl_exists("epochs"):
-            self.epochs, self.stimulus_labels, self.pain_ratings, self.event_samples = (
+            self.epochs, self.stimulus_labels, self.pain_ratings, self.events = (
                 pre_utils_epo.preprocess_epochs(
                     self.preprocessed_raw,
                     self.subject_id,
@@ -120,7 +123,7 @@ class Subject:
                 self.save(self.epochs, "epochs", as_mat=as_mat)
                 self.save(self.stimulus_labels, "stimulus_labels", as_mat=as_mat)
                 self.save(self.pain_ratings, "pain_ratings", as_mat=as_mat)
-                self.save(self.event_samples, "event_samples", as_mat=as_mat)
+                self.save(self.events, "events", as_mat=as_mat)
         else:
             self.epochs = self.load_epochs()
             self.load_epochs_info(self.preprocessed_data_path)
@@ -136,75 +139,112 @@ class Subject:
 
         self.save(stc_epochs, "stc_epochs")
 
-    def load_epochs_info(self, preprocessed_data_path=None):
-        data_path = preprocessed_data_path or CFGLog["output"]["parent_save_path"]
+    def load_epochs_info(self):
+        """Load epochs info from preprocessed data path"""
+        file_paths = {
+            "stimulus_labels": f"{self.subject_id}_stimulus_labels.pkl",
+            "pain_ratings": f"{self.subject_id}_pain_ratings.pkl",
+            "events": f"{self.subject_id}_events.pkl",
+            "drop_log": f"{self.subject_id}_drop_log.pkl",
+        }
 
-        file_extension = ".mat" if preprocessed_data_path else ".pkl"
-
-        file_names = [
-            # "stimulus_labels",
-            # "pain_ratings",
-            # "event_samples",
-            "drop_log",
-        ]
-
-        for file_name in file_names:
-            file_path = os.path.join(
-                data_path, f"{self.subject_id}_{file_name}{file_extension}"
-            )
-
-            if preprocessed_data_path:
-                setattr(self, file_name, sio.loadmat(file_path))
-            else:
-                setattr(self, file_name, pickle.load(open(file_path, "rb")))
+        for file_name, file_path in file_paths.items():
+            with open(os.path.join(self.preprocessed_data_path, file_path), "rb") as file:
+                setattr(self, file_name, pickle.load(file))
 
     def save(
-        self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False
+        self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False, 
+        overwrite: bool = False
     ):
         if object_name == "stc_eyes_open":
-            save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
+            save_path = config.output.parent_stc_save_path.eyes_open
         elif object_name == "stc_epochs":
-            save_path = CFGLog["output"]["parent_stc_save_path"]["epochs"]
+            save_path = config.output.parent_stc_save_path.epochs
         else:
-            save_path = CFGLog["output"]["parent_save_path"]
+            save_path = config.output.parent_save_path
 
         save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
 
         if as_mat:
-            save_file_path = save_file_path.replace(".pkl", "")
+            save_file_path = save_file_path.replace(".pkl", ".mat")
             sio.savemat(save_file_path, {object_name: data_object})
         if as_vhdr:
             save_file_path = save_file_path.replace(".pkl", ".vhdr")
-            data_object.export(save_file_path)
+            data_object.export(save_file_path, overwrite=overwrite)
         else:
             with open(save_file_path, "wb") as file:
                 pickle.dump(data_object, file)
         print(f"Saved {object_name} to {save_file_path}.")
 
-    def file_exists(self, object_name: str, file_type: str="pkl"):
+    def file_exists(self, object_name: str, file_type: str = "pkl"):
         if object_name == "stc_eyes_open":
-            save_path = CFGLog["output"]["parent_stc_save_path"]["eyes_open"]
+            save_path = config.output.parent_stc_save_path.eyes_open
         elif object_name == "stc_epochs":
-            save_path = CFGLog["output"]["parent_stc_save_path"]["epochs"]
+            save_path = config.output.parent_stc_save_path.epochs
         else:
-            save_path = CFGLog["output"]["parent_save_path"]
+            save_path = config.output.parent_save_path
 
-        save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.{file_type}")
+        save_file_path = os.path.join(
+            save_path, f"{self.subject_id}_{object_name}.{file_type}"
+        )
         return os.path.exists(save_file_path)
 
-    def resample_func(self, old_freq, new_freq):
+    def resample_events(self, original_frequency, target_frequency):
         """
-        Adjust the time for resampling frequency of 600 Hz
-        Reassign the event samples with new resampling
-        Return the new times
-        """
-        new_samples = (self.event_samples / old_freq.astype(float)) * new_freq.astype(
-            float
-        )
-        self.event_samples = new_samples
-        self.save(new_samples, "event_samples")
-        self.save(new_samples, "event_samples", as_mat=True)
+        Resample event times from an original frequency to a target frequency.
 
+        Args:
+            original_frequency (float): The original frequency of the events.
+            target_frequency (float): The target frequency to resample the events to.
+
+        Updates:
+            Updates the `events` attribute with resampled event times.
+        """
+        # Calculate the new event times by adjusting the original times to the target frequency.
+        resampled_event_times = (self.events[:, 0] // original_frequency) * target_frequency
+
+        # Reconstruct the events array with new times, maintaining other columns.
+        self.events = [
+            [int(resampled_event_times[i]), int(self.events[i, 1]), int(self.events[i, 2])]
+            for i in range(len(resampled_event_times))
+        ]
+        self.events = np.array(self.events)
+
+        # Save the resampled events in both pickle and MATLAB formats.
+        self.save(self.events, "events")
+        self.save(self.events, "events", as_mat=True)
+
+    def concatenate_epochs(self, save=True, overwrite=False):
+        from mne.io import concatenate_raws, RawArray
+        
+        if self.epochs is None: 
+            self.load_epochs()
+
+        raw_list = []
+        for epoch in self.epochs:
+            raw = RawArray(epoch, self.epochs.info)
+            raw_list.append(raw)
+
+        raw_concatenated = concatenate_raws(raw_list)
+
+        self.concatenated_epochs = raw_concatenated
+        
+        self.save(raw_concatenated, "epochs_concatenated", as_vhdr=True, overwrite=overwrite)
+        
+    def reject_and_update_epochs(self):
+        dropped_epochs = pre_utils_epo.reject_bad_epochs(self.epochs)
+
+        # Update epochs info (stimulus labels, pain ratings, events, drop_log)
+        self.epochs.drop(dropped_epochs)
+        self.stimulus_labels = np.delete(self.stimulus_labels, dropped_epochs, axis=0)
+        self.pain_ratings = np.delete(self.pain_ratings, dropped_epochs, axis=0)
+        self.events = np.delete(self.events, dropped_epochs, axis=0)
+        
+        # Save updated info
+        self.save(self.stimulus_labels, "stimulus_labels")
+        self.save(self.pain_ratings, "pain_ratings")
+        self.save(self.events, "events")
+                
 
 class Group:
     def __init__(self, subjects: List[Subject]):
@@ -237,7 +277,7 @@ class SubjectProcessor:
 
     def _fill_nan_channels(self, epochs):
         incomplete_ch_names = epochs.info["ch_names"]
-        complete_ch_names = CFGLog["parameters"]["ch_names"]
+        complete_ch_names = config.parameters.ch_names
         complete_ch_names = [ch_name.upper() for ch_name in complete_ch_names]
         missing_ch_ids = [
             i

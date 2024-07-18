@@ -3,11 +3,14 @@ import numpy as np
 import pandas as pd
 import mne
 from autoreject import AutoReject
-from src.configs.config import CFGLog
 from src.preprocessing import utils as pre_utils
+from src.utils.config import Config
+import src.configs.config as configs
 
-RESAMPLE_FREQ = CFGLog["parameters"]["sfreq"]
-RANDOM_STATE = CFGLog["parameters"]["random_seed"]
+config = Config.from_json(configs.CFGLog)
+
+RESAMPLE_FREQ = config.parameters.sfreq
+RANDOM_STATE = config.parameters.random_seed
 
 
 def get_stimulus_labels(stimulus_labels, event_values):
@@ -62,25 +65,25 @@ def get_stimulus_labels(stimulus_labels, event_values):
     return [label for label in cleaned_stim_labels if label != 0]
 
 
-def process_annotations(raw, event_dict):
+def process_annotations(raw, event_id):
     """
     Process annotations from raw data to filter out duplicate and repeated events.
 
     Args:
         raw (mne.io.Raw): The raw data.
-        event_dict (dict): The event dictionary.
+        event_id (dict): The event dictionary.
 
     Returns:
         Tuple: The filtered events, event dictionary, event event_keys, and event event_values.
     """
-    events, event_id = mne.find_events(raw, event_id=event_dict)
+    events, event_id = mne.find_events(raw, event_id=event_id)
     event_keys = list(event_id.event_keys())
     event_values = list(event_id.event_values())
 
     events = remove_duplicate_events(events)
     events = remove_repeated_events(events)
 
-    return events, event_dict, event_keys, event_values
+    return events, event_id, event_keys, event_values
 
 
 def remove_duplicate_events(events):
@@ -109,7 +112,7 @@ def remove_repeated_events(events):
 def create_epochs(
     raw: mne.io.Raw,
     events: np.ndarray,
-    event_dict: dict,
+    event_id: dict,
     tmin: float,
     tmax: float,
 ) -> mne.Epochs:
@@ -121,7 +124,7 @@ def create_epochs(
     Args:
         raw (mne.io.Raw): The raw data.
         events (np.ndarray): The event array.
-        event_dict (dict): The event dictionary.
+        event_id (dict): The event dictionary.
         tmin (float): The start time of the time range.
         tmax (float): The end time of the time range.
 
@@ -130,16 +133,16 @@ def create_epochs(
     """
     time_range = (
         (tmin, tmax)
-        if 10 in event_dict.event_values() or 12 in event_dict.event_values()
+        if 10 in event_id.event_values() or 12 in event_id.event_values()
         else (tmin + 0.2, tmax + 0.2)
     )
     epochs = mne.Epochs(
         raw,
         events,
-        event_dict,
+        event_id,
         tmin=time_range[0],
         tmax=time_range[1],
-        proj=None,
+        proj=False,
         preload=True,
         event_repeated="merge",
         baseline=None,
@@ -331,11 +334,17 @@ def correct_single_mismatches(
 
 
 def zscore_epochs(epochs):
-    epochs_data = epochs.get_data()
+    epochs_data = epochs.get_data(copy=False)
     zscores = (epochs_data - epochs_data.mean(axis=0)) / epochs_data.std(axis=0)
     info = epochs.info
     zscored_epochs = mne.EpochsArray(
-        data=zscores, info=info, tmin=epochs.tmin, event_id=epochs.event_id
+        data=zscores,
+        info=info,
+        events=epochs.events,
+        tmin=epochs.tmin,
+        event_id=epochs.event_id,
+        proj=False,
+        baseline=None,
     )
     return zscored_epochs
 
@@ -451,7 +460,7 @@ def get_stimulus_epochs(
     )
 
 
-def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
+def preprocess_epochs(raw, subject_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     """
     Preprocess epochs by correcting missing/incorrect/extra key-presses,
     classifying stimulus types, rejecting noisy trials, and verifying that the
@@ -459,7 +468,7 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
 
     Args:
         raw (mne.io.Raw): The raw data.
-        sub_id (str): The subject ID.
+        subject_id (str): The subject ID.
         data_path (str): The path to the data.
         TIME_RANGE (tuple): The time range.
         PERISTIM_TIME_WIN (tuple): The persistence time window.
@@ -477,37 +486,37 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     SAMPS_TO_MS = raw.info["sfreq"] / RESAMPLE_FREQ
 
     # Load event dictionary
-    event_dict = CFGLog["parameters"]["event_dict"]
+    event_id = config.parameters.event_id_all
 
-    # Extract lists from event_dict which is a dictionary of dicts
-    high_hand = list(event_dict["high_hand"].event_keys())
-    med_hand = list(event_dict["med_hand"].event_keys())
-    low_hand = list(event_dict["low_hand"].event_keys())
-    high_back = list(event_dict["high_back"].event_keys())
-    med_back = list(event_dict["med_back"].event_keys())
-    low_back = list(event_dict["low_back"].event_keys())
+    # Extract lists from event_id which is a dictionary of dicts
+    high_hand = list(event_id["high_hand"].event_keys())
+    med_hand = list(event_id["med_hand"].event_keys())
+    low_hand = list(event_id["low_hand"].event_keys())
+    high_back = list(event_id["high_back"].event_keys())
+    med_back = list(event_id["med_back"].event_keys())
+    low_back = list(event_id["low_back"].event_keys())
 
-    # Also combine event_dict dicts into one dict
-    event_dict = {
-        **event_dict["high_hand"],
-        **event_dict["med_hand"],
-        **event_dict["low_hand"],
-        **event_dict["high_back"],
-        **event_dict["med_back"],
-        **event_dict["low_back"],
-        **event_dict["stop"],
-        **event_dict["pinprick_markers"],
+    # Also combine event_id dicts into one dict
+    event_id = {
+        **event_id["high_hand"],
+        **event_id["med_hand"],
+        **event_id["low_hand"],
+        **event_id["high_back"],
+        **event_id["med_back"],
+        **event_id["low_back"],
+        **event_id["stop"],
+        **event_id["pinprick_markers"],
     }
 
     # Get events and event_id, and remove duplicates
-    events, event_id, event_keys, event_values = process_annotations(raw, event_dict)
+    events, event_id, event_keys, event_values = process_annotations(raw, event_id)
 
     # Get desired time window
     times_tup, time_win_path = pre_utils.get_time_window(PERISTIM_TIME_WIN)
     tmin, bmax, tmax = times_tup
 
     # Create epochs object from raw and annotations
-    epochs = create_epochs(raw, events, event_dict, tmin, tmax)
+    epochs = create_epochs(raw, events, event_id, tmin, tmax)
 
     # Adjust annotations for repeats
     cleaned_events = remove_dropped_events(epochs, events)
@@ -533,7 +542,7 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     event_samples = [el[0] for el in cleaned_events[stimulus_indices]]
 
     # Get stimulus labels and pain ratings
-    df = load_pain_ratings(data_path, sub_id)
+    df = load_pain_ratings(data_path, subject_id)
     ground_truth_labels, pain_ratings = get_labels_and_ratings(df)
 
     # Correct extra/missing/incorrect key presses and
@@ -553,11 +562,8 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     )
 
     # Reject noisy epochs
-    ar = AutoReject(random_state=RANDOM_STATE)
-    _, reject_log = ar.fit_transform(stim_epochs, return_log=True)
-    bad_epochs = reject_log.bad_epochs.tolist()
-    dropped_epochs = [idx for idx, is_bad in enumerate(bad_epochs) if is_bad]
-
+    dropped_epochs = reject_bad_epochs(corrected_stim_epochs)
+    
     # Remove dropped epochs
     stim_epochs.drop(dropped_epochs)
     ground_truth_labels = np.delete(
@@ -578,3 +584,47 @@ def preprocess_epochs(raw, sub_id, data_path, TIME_RANGE, PERISTIM_TIME_WIN):
     zscored_epochs = zscore_epochs(corrected_stim_epochs)
 
     return (zscored_epochs, stimulus_labels, pain_ratings, event_samples)
+
+
+def create_epochs_from_events(
+    preprocessed_raw, subject_id, events, event_id, tmin, tmax
+):
+
+    def filter_event_id(events, event_id):
+        # Get unique event codes from the third column of the events array
+        unique_event_ids = np.unique(events[:, 2])
+
+        # Filter the event_id dictionary
+        filtered_event_id = {
+            key: value for key, value in event_id.items() if value in unique_event_ids
+        }
+
+        return filtered_event_id
+
+    filtered_event_id = filter_event_id(events, event_id)
+
+    # Create epochs
+    epochs = mne.Epochs(
+        preprocessed_raw,
+        events=events,
+        event_id=filtered_event_id,
+        tmin=tmin,
+        tmax=tmax,
+        proj=False,
+        baseline=None,
+        preload=True,
+    )
+
+    # Z-score epochs
+    epochs = zscore_epochs(epochs)
+
+    return epochs
+
+
+def reject_bad_epochs(epochs):
+    ar = AutoReject(random_state=RANDOM_STATE)
+    _, reject_log = ar.fit_transform(epochs, return_log=True)
+    bad_epochs = reject_log.bad_epochs.tolist()
+    dropped_epochs = [idx for idx, is_bad in enumerate(bad_epochs) if is_bad]
+
+    return dropped_epochs

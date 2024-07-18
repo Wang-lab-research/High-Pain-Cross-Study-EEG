@@ -9,10 +9,13 @@ from mne.preprocessing import ICA
 from pyprep.find_noisy_channels import NoisyChannels
 from IPython import display
 from glob import glob
-from src.configs.config import CFGLog
+from src.utils.config import Config
+import src.configs.config as configs
 
-RESAMPLE_FREQ = CFGLog["parameters"]["sfreq"]
-RANDOM_STATE = CFGLog["parameters"]["random_seed"]
+config = Config.from_json(configs.CFGLog)
+
+RESAMPLE_FREQ = config.parameters.sfreq
+RANDOM_STATE = config.parameters.random_seed
 
 
 def clear_output():
@@ -388,27 +391,24 @@ def get_binary_pain_trials(
 
 
 def preprocess_entire(raw, subject_id):
-    raw = remove_trailing_zeros(raw, subject_id, channel_threshold=0.5)
+    # raw = remove_trailing_zeros(raw, subject_id, channel_threshold=0.5)
 
     if "X" in raw.ch_names and len(raw.ch_names) < 64:
         rename_and_set_channel_types_32(raw)
         drop_unused_channels_32(raw)
-        set_custom_montage(raw, CFGLog["parameters"]["32_channel_montage_file_path"])
+        set_custom_montage(raw, config.parameters["32_channel_montage_file_path"])
         raise ValueError("32 channel data detected")
     else:
         handle_64_channel_case(raw, subject_id)
 
-    apply_notch_filter(raw)
     apply_bandpass_filter(raw)
-    resample_data(raw)
-
-    find_and_interpolate_bad_channels(raw)
+    apply_notch_filter(raw)
     set_average_reference(raw)
-
     ica = fit_ica(raw, subject_id)
-    find_eog_artifacts(raw, subject_id)
+    ica = find_eog_artifacts(raw, ica, subject_id)
     ica.apply(raw)
-
+    find_and_interpolate_bad_channels(raw)
+    resample_data(raw)
     inspect_data(raw, subject_id)
 
     return raw
@@ -452,7 +452,7 @@ def handle_64_channel_case(raw, subject_id):
             raw.drop_channels(["FT7", "FT8", "PO5", "PO6"])
 
         # Set montage
-        set_custom_montage(raw, CFGLog["parameters"]["64_channel_montage_file_path"])
+        set_custom_montage(raw, config.parameters.get("64_channel_montage_file_path"))
 
     # Check if the data is from the gTec cap
     elif "AF8" in raw.ch_names:
@@ -529,14 +529,15 @@ def fit_ica(raw, subject_id):
     return ica
 
 
-def find_eog_artifacts(raw, subject_id):
+def find_eog_artifacts(raw, ica, subject_id):
     if "EOG1" in raw.ch_names:
         print(f"{subject_id}\nfinding EOG artifacts...")
         try:
-            eog_indices, eog_scores = ICA.find_bads_eog(inst=raw, verbose=True)
-            ICA.exclude = eog_indices
+            eog_indices, eog_scores = ica.find_bads_eog(raw, verbose=True)
+            ica.exclude = eog_indices
         except ValueError:
-            ICA.exclude = [0, 1]
+            ica.exclude = [0, 1]
+    return ica
 
 
 def inspect_data(raw, subject_id):
