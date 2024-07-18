@@ -613,6 +613,7 @@ def create_epochs_from_events(
         proj=False,
         baseline=None,
         preload=True,
+        event_repeated="merge",
     )
 
     # Z-score epochs

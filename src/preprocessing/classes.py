@@ -90,7 +90,9 @@ class Subject:
                 self.raw, self.subject_id
             )
             self.save(self.preprocessed_raw, "preprocessed_raw")
-            self.save(self.preprocessed_raw, "preprocessed_raw", as_vhdr=True, overwrite=True)
+            self.save(
+                self.preprocessed_raw, "preprocessed_raw", as_vhdr=True, overwrite=True
+            )
         else:
             self.load_preprocessed()
 
@@ -149,12 +151,18 @@ class Subject:
         }
 
         for file_name, file_path in file_paths.items():
-            with open(os.path.join(self.preprocessed_data_path, file_path), "rb") as file:
+            with open(
+                os.path.join(self.preprocessed_data_path, file_path), "rb"
+            ) as file:
                 setattr(self, file_name, pickle.load(file))
 
     def save(
-        self, data_object, object_name: str, as_mat: bool = False, as_vhdr: bool = False, 
-        overwrite: bool = False
+        self,
+        data_object,
+        object_name: str,
+        as_mat: bool = False,
+        as_vhdr: bool = False,
+        overwrite: bool = False,
     ):
         if object_name == "stc_eyes_open":
             save_path = config.output.parent_stc_save_path.eyes_open
@@ -201,11 +209,17 @@ class Subject:
             Updates the `events` attribute with resampled event times.
         """
         # Calculate the new event times by adjusting the original times to the target frequency.
-        resampled_event_times = (self.events[:, 0] // original_frequency) * target_frequency
+        resampled_event_times = (
+            self.events[:, 0] // original_frequency
+        ) * target_frequency
 
         # Reconstruct the events array with new times, maintaining other columns.
         self.events = [
-            [int(resampled_event_times[i]), int(self.events[i, 1]), int(self.events[i, 2])]
+            [
+                int(resampled_event_times[i]),
+                int(self.events[i, 1]),
+                int(self.events[i, 2]),
+            ]
             for i in range(len(resampled_event_times))
         ]
         self.events = np.array(self.events)
@@ -216,8 +230,8 @@ class Subject:
 
     def concatenate_epochs(self, save=True, overwrite=False):
         from mne.io import concatenate_raws, RawArray
-        
-        if self.epochs is None: 
+
+        if self.epochs is None:
             self.load_epochs()
 
         raw_list = []
@@ -228,9 +242,11 @@ class Subject:
         raw_concatenated = concatenate_raws(raw_list)
 
         self.concatenated_epochs = raw_concatenated
-        
-        self.save(raw_concatenated, "epochs_concatenated", as_vhdr=True, overwrite=overwrite)
-        
+
+        self.save(
+            raw_concatenated, "epochs_concatenated", as_vhdr=True, overwrite=overwrite
+        )
+
     def reject_and_update_epochs(self):
         dropped_epochs = pre_utils_epo.reject_bad_epochs(self.epochs)
 
@@ -239,12 +255,13 @@ class Subject:
         self.stimulus_labels = np.delete(self.stimulus_labels, dropped_epochs, axis=0)
         self.pain_ratings = np.delete(self.pain_ratings, dropped_epochs, axis=0)
         self.events = np.delete(self.events, dropped_epochs, axis=0)
-        
+
         # Save updated info
-        self.save(self.stimulus_labels, "stimulus_labels")
-        self.save(self.pain_ratings, "pain_ratings")
-        self.save(self.events, "events")
-                
+        for as_mat in [False, True]:
+            self.save(self.stimulus_labels, "stimulus_labels", as_mat=as_mat)
+            self.save(self.pain_ratings, "pain_ratings", as_mat=as_mat)
+            self.save(self.events, "events", as_mat=as_mat)
+
 
 class Group:
     def __init__(self, subjects: List[Subject]):
