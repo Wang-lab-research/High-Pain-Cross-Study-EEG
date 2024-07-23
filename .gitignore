@@ -163,6 +163,3 @@ cython_debug/
 
 # Data
 data/
-
-# matlab packages
-scripts/ssm/matlab packages/
