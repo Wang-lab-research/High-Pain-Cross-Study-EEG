@@ -23,7 +23,7 @@ model_fname = os.path.join(fs_dir, "bem", "fsaverage-5120-5120-5120-bem.fif")
 snr = 1.0  # for non-averaged data
 
 
-def apply_inverse_and_save(
+def apply_inverse(
     mne_object,
     inverse_operator,
     labels,
@@ -44,7 +44,7 @@ def apply_inverse_and_save(
     Returns:
         tuple: A tuple containing the label time courses and the subject ID if label time courses contain NaN values.
     """
-    apply_inverse_and_save_kwargs = dict(
+    apply_inverse_kwargs = dict(
         lambda2=1.0 / snr**2,
         verbose=True,
     )
@@ -54,14 +54,14 @@ def apply_inverse_and_save(
     ):
         print("Applying inverse to Raw object")
         stc = mne.minimum_norm.apply_inverse_raw(
-            mne_object, inverse_operator, method=method, **apply_inverse_and_save_kwargs
+            mne_object, inverse_operator, method=method, **apply_inverse_kwargs
         )
     elif isinstance(mne_object, mne.Epochs) or isinstance(
         mne_object, mne.epochs.EpochsArray
     ):
         print("Applying inverse to Epochs object")
         stc = mne.minimum_norm.apply_inverse_epochs(
-            mne_object, inverse_operator, method=method, **apply_inverse_and_save_kwargs
+            mne_object, inverse_operator, method=method, **apply_inverse_kwargs
         )
     else:
         raise ValueError("Invalid mne_object type")
@@ -120,7 +120,7 @@ def compute_fwd_and_inv(
         mne_object.info, fwd, noise_var, verbose=True
     )
 
-    stc_epochs = apply_inverse_and_save(
+    stc_epochs = apply_inverse(
         mne_object,
         inverse_operator,
         labels,
@@ -135,7 +135,7 @@ def compute_fwd_and_inv(
 def source_localize(
     eyes_open,
     sub_id,
-    epochs,
+    epochs=None,
     roi_names=config.parameters.roi_names,
     average_dipoles=True,
     method="MNE",
@@ -191,10 +191,10 @@ def source_localize(
     )
 
     # Preallocate
-    stc_eyes_open, stc_epochs = None, None
+    stc_object = None
     # If desired and eyes open resting data not yet processed, process it
     if return_eyes_open:
-        stc_eyes_open = compute_fwd_and_inv(
+        stc_object = compute_fwd_and_inv(
             sub_id,
             snr,
             trans,
@@ -206,19 +206,19 @@ def source_localize(
             method,
             average_dipoles=True,
         )
+    else:
+        print("Source localizing epochs...")
+        stc_object = compute_fwd_and_inv(
+            sub_id,
+            snr,
+            trans,
+            src,
+            bem,
+            epochs,
+            noise_var,
+            labels,
+            method,
+            average_dipoles=True,
+        )
 
-    print("Source localizing epochs...")
-    stc_epochs = compute_fwd_and_inv(
-        sub_id,
-        snr,
-        trans,
-        src,
-        bem,
-        eyes_open,
-        noise_var,
-        labels,
-        method,
-        average_dipoles=True,
-    )
-
-    return stc_epochs, stc_eyes_open
+    return np.asarray(stc_object)

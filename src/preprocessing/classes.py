@@ -139,22 +139,38 @@ class Subject:
             self.epochs = self.load_epochs()
             self.load_epochs_info(self.preprocessed_data_path)
 
-    def get_stc_eyes_open(self):
-        stc_eyes_open = None
-        self.save(stc_eyes_open, "stc_eyes_open")
-
-    def get_stc_epochs(
-        self, average_dipoles=True, method="MNE", return_eyes_open=False
-    ):
-        self.stc_epochs = sl_utils.source_localize(
+    def get_stc_eyes_open(self, average_dipoles=True, method="MNE", return_eyes_open=True):
+        if not self.file_exists("stc_eyes_open", "pkl"):
+            self.stc_eyes_open = sl_utils.source_localize(
             self.eyes_open,
             self.subject_id,
-            self.epochs,
+            epochs=None,
             roi_names=config.parameters.roi_names,
             average_dipoles=average_dipoles,
             method=method,
             return_eyes_open=return_eyes_open,
         )
+        else:
+            self.stc_eyes_open = pickle.load(
+                open(f"{self.preprocessed_data_path}/{self.subject_id}_stc_eyes_open.pkl", "rb")
+            )
+    def get_stc_epochs(
+        self, average_dipoles=True, method="MNE", return_eyes_open=False
+    ):
+        if not self.file_exists("stc_epochs", "pkl"):
+            self.stc_epochs = sl_utils.source_localize(
+                self.eyes_open,
+                self.subject_id,
+                self.epochs,
+                roi_names=config.parameters.roi_names,
+                average_dipoles=average_dipoles,
+                method=method,
+                return_eyes_open=return_eyes_open,
+            )
+        else:
+            self.stc_epochs = pickle.load(
+                open(f"{self.preprocessed_data_path}/{self.subject_id}_stc_epochs.pkl", "rb")
+            )
 
     def load_epochs_info(self):
         """Load epochs info from preprocessed data path"""
@@ -187,21 +203,17 @@ class Subject:
             sio.savemat(save_file_path, {"data": data_object}, format='5')
         elif as_mat and object_name == "stc_epochs":
             stc_epochs = data_object
-            stc_epochs = np.concatenate(stc_epochs)
-            stc_epochs = np.reshape(
-                stc_epochs, (len(stc_epochs), stc_epochs.shape[0], stc_epochs.shape[1])
-            )
             print("*stc_epochs shape = ", stc_epochs.shape)
 
-            for i in range(stc_epochs.shape[0]):
+            for i in range(stc_epochs.shape[1]):
                 print(
-                    f"Saving stc.mat for {self.sub_id} in region: {configs.parameters.roi_names[i]}"
+                    f"Saving stc.mat for {self.subject_id} in region: {config.parameters.roi_names[i]}"
                 )
                 stc_epochs_i = stc_epochs[:, i, :]
                 print("*stc_epochs_i shape = ", stc_epochs_i.shape)
 
-                save_fname = f"{configs.parameters.roi_names[i]}_epochs.mat"
-                sub_save_path = os.path.join(save_path, self.sub_id)
+                save_fname = f"{config.parameters.roi_names[i]}.mat"
+                sub_save_path = os.path.join(save_path, f"{self.subject_id}_stc_epochs")
                 os.makedirs(sub_save_path, exist_ok=True)
                 save_file_path = os.path.join(sub_save_path, save_fname)
                 sio.savemat(save_file_path, {"data": stc_epochs_i}, format='5')
@@ -215,13 +227,7 @@ class Subject:
         print(f"Saved {object_name} to {save_file_path}.")
 
     def file_exists(self, object_name: str, file_type: str = "pkl"):
-        if object_name == "stc_eyes_open":
-            save_path = config.output.parent_stc_save_path.eyes_open
-        elif object_name == "stc_epochs":
-            save_path = config.output.parent_stc_save_path.epochs
-        else:
-            save_path = config.output.parent_save_path
-
+        save_path = self.preprocessed_data_path
         save_file_path = os.path.join(
             save_path, f"{self.subject_id}_{object_name}.{file_type}"
         )
@@ -268,6 +274,13 @@ class Subject:
         if self.epochs is None and data is None:
             self.load_epochs()
             data = self.epochs
+        elif data is not None:
+            info = mne.create_info(
+                config.parameters.roi_names,
+                self.epochs.info["sfreq"],
+                ch_types="eeg",
+            )
+            self.epochs = mne.EpochsArray(data, info)
 
         raw_list = []
         for epoch in data:
@@ -403,12 +416,12 @@ class SubjectProcessor:
         stc_epo_arrays = []
         stc_eyes_open_arrays = []
         for subject in subjects_list:
-            this_sub_id = subject.subject_id
-            epochs, epochs, sem = self._load_epochs(this_sub_id)
+            this_subject_id = subject.subject_id
+            epochs, epochs, sem = self._load_epochs(this_subject_id)
             epochs_data_arrays.append(epochs)
             sem_epochs_per_sub.append(sem)
 
-            stc_epo_array = self._load_stc_epochs(this_sub_id)
+            stc_epo_array = self._load_stc_epochs(this_subject_id)
             stc_epo_arrays.append(stc_epo_array)
 
             stc_eyes_open = None
