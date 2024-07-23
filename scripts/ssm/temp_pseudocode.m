@@ -20,8 +20,6 @@ for i = 1:folds
     test_labels = ratings;
     test_labels(train_trial_id) = [];
 
-    % Convert pain ratings to binary based on a threshold and a gap
-    pain_ratings = double((ratings > threshold) | (ratings < threshold - gap));
 
     % Initialize variables to store results
     avg_precisions = [];

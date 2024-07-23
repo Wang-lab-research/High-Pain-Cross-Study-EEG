@@ -49,7 +49,7 @@ Fs=600; % sampling rate
 %% Thresholds for binarizing pain
 pain_threshold = 4;
 gap = 1;
-high_pain_threshold = 6; % threshold for train trials
+high_pain_threshold = 8; % threshold for train trials
 
 %% Training parameters
 Tbin                =       2; % seconds before and after events
@@ -62,27 +62,42 @@ folds               =       5; % number of train trials to attempt
 
 if modality=="stc"
     proc_dir = "High-Pain-Cross-Study-EEG/data/preprocessed/"; % processed data
-    file_ending = "_epochs.mat";
     sub_num = "039";
 end
 
 abs_proc_dir = fullfile(pwd, proc_dir);
 addpath(genpath(abs_proc_dir)); 
-data_path = fullfile(abs_proc_dir, sub_num+file_ending);
+stc_epochs_dir = fullfile(abs_proc_dir, sub_num+"_stc_epochs/");
 events_path = fullfile(abs_proc_dir, sub_num+"_events.mat");
 pain_ratings_path = fullfile(abs_proc_dir, sub_num+"_pain_ratings.mat");
 stimulus_labels_path = fullfile(abs_proc_dir, sub_num+"_stimulus_labels.mat");
 
-stc_epochs = load(data_path);
+stc_epochs = struct();
+mat_files = dir(fullfile(stc_epochs_dir, '*.mat'));
+
+% Load each MAT file into the stc_epochs struct
+for i = 1:length(mat_files)
+    file_name = mat_files(i).name;
+    region_name = erase(file_name, '.mat'); % Extract the region name without the file extension
+    region_name = strrep(region_name, '-', '_'); % Replace hyphens with underscores
+    file_path = fullfile(stc_epochs_dir, file_name);
+    data = load(file_path);
+    stc_epochs.(region_name) = data.data;
+end
+
+% Display the contents of stc_epochs
 events = load(events_path);
-pain_ratings = load(pain_ratings_path);
+ratings = load(pain_ratings_path).data;
 stimulus_labels = load(stimulus_labels_path);
 
 %% Ensure epochs, ratings, events have the same length
-if length(stc_epochs) ~= length(pain_ratings) || length(stc_epochs) ~= length(events) ...
+if length(stc_epochs) ~= length(ratings) || length(stc_epochs) ~= length(events) ...
         || length(stc_epochs) ~= length(stimulus_labels)
     error('STC Epochs, ratings, and events have different lengths');
 end
+
+%% Convert pain ratings to binary based on a threshold and a gap
+ratings_bin = double((ratings > pain_threshold) | (ratings < pain_threshold - gap));
 
 %% Omit channels with low SnR
 % 

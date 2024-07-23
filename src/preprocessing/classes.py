@@ -202,19 +202,18 @@ class Subject:
             save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.mat")
             sio.savemat(save_file_path, {"data": data_object}, format='5')
         elif as_mat and object_name == "stc_epochs":
+            sub_save_path = os.path.join(save_path, f"{self.subject_id}_stc_epochs")
+            os.makedirs(sub_save_path, exist_ok=True)
             stc_epochs = data_object
-            print("*stc_epochs shape = ", stc_epochs.shape)
+            print("*stc_epochs.shape = ", stc_epochs.shape)
 
             for i in range(stc_epochs.shape[1]):
                 print(
-                    f"Saving stc.mat for {self.subject_id} in region: {config.parameters.roi_names[i]}"
+                    f"Saving {config.parameters.roi_names[i]}.mat for {self.subject_id}"
                 )
                 stc_epochs_i = stc_epochs[:, i, :]
-                print("*stc_epochs_i shape = ", stc_epochs_i.shape)
-
+                print("shape = ", stc_epochs_i.shape)
                 save_fname = f"{config.parameters.roi_names[i]}.mat"
-                sub_save_path = os.path.join(save_path, f"{self.subject_id}_stc_epochs")
-                os.makedirs(sub_save_path, exist_ok=True)
                 save_file_path = os.path.join(sub_save_path, save_fname)
                 sio.savemat(save_file_path, {"data": stc_epochs_i}, format='5')
 
