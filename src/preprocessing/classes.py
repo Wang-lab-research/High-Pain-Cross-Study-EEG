@@ -8,7 +8,6 @@ from tabulate import tabulate
 from typing import Dict, List, Union
 from src.preprocessing import utils as pre_utils
 from src.preprocessing import utils_epo as pre_utils_epo
-from src.preprocessing import sl_utils
 from src.utils.config import Config
 import src.configs.config as configs
 
@@ -42,7 +41,7 @@ class Subject:
         load_epochs()
         load_epochs_info()
         save()
-        file_exists()
+        pkl_exists()
     """
 
     def __init__(self, subject_id: str, group: str, preprocessed_data_path: str = None):
@@ -98,14 +97,11 @@ class Subject:
             self.load_preprocessed()
 
     def get_cleaned_eyes_open(self):
-        if not self.file_exists("eyes_open", "pkl"):
-            self.eyes_open = self.get_cleaned_eyes_open(
-                self.preprocessed_raw, self.subject_id
-            )
+        if not self.pkl_exists("eyes_open"):
+            pass
             self.save(self.eyes_open, "eyes_open")
         else:
-            self.eyes_open = self.load_eyes_open()
-            
+            self.eyes_open = self.load("eyes_open")
         # Input: raw from self.raw
         # Steps:
         # 1. Identify eyes open time frames
@@ -114,11 +110,6 @@ class Subject:
         # Output: saved .fif file with just eyes open
         #   and return just eyes_open data
 
-    def load_eyes_open(self):
-        self.eyes_open = pickle.load(
-            open(f"{self.preprocessed_data_path}/{self.subject_id}_eyes_open.pkl", "rb")
-        ) 
-    
     def get_cleaned_epochs(self, TIME_RANGE, PERISTIM_TIME_WIN):
         if not self.pkl_exists("epochs"):
             self.epochs, self.stimulus_labels, self.pain_ratings, self.events = (
@@ -140,21 +131,15 @@ class Subject:
             self.load_epochs_info(self.preprocessed_data_path)
 
     def get_stc_eyes_open(self):
+        # TODO add if not self.pkl_exists("stc_eyes_open"):
         stc_eyes_open = None
         self.save(stc_eyes_open, "stc_eyes_open")
 
-    def get_stc_epochs(
-        self, average_dipoles=True, method="MNE", return_eyes_open=False
-    ):
-        self.stc_epochs = sl_utils.source_localize(
-            self.eyes_open,
-            self.subject_id,
-            self.epochs,
-            roi_names=config.parameters.roi_names,
-            average_dipoles=average_dipoles,
-            method=method,
-            return_eyes_open=return_eyes_open,
-        )
+    def get_stc_epochs(self):
+        # TODO add if not self.pkl_exists("stc_epochs"):
+        stc_epochs = None
+
+        self.save(stc_epochs, "stc_epochs")
 
     def load_epochs_info(self):
         """Load epochs info from preprocessed data path"""
@@ -188,30 +173,9 @@ class Subject:
 
         save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
 
-        if as_mat and "stc" not in object_name:
+        if as_mat:
             save_file_path = save_file_path.replace(".pkl", ".mat")
             sio.savemat(save_file_path, {object_name: data_object})
-        elif as_mat and object_name == "stc_epochs":
-            stc_epochs = data_object
-            stc_epochs = np.concatenate(stc_epochs)
-            stc_epochs = np.reshape(
-                stc_epochs, (len(stc_epochs, stc_epochs.shape[0], stc_epochs.shape[1]))
-            )
-            print("*stc_epochs shape = ", stc_epochs.shape)
-
-            for i in range(len(stc_epochs.shape[0])):
-                print(
-                    f"Saving stc.mat for {self.sub_id} in region: {configs.parameters.roi_names[i]}"
-                )
-                stc_epochs_i = stc_epochs[:, i, :]
-                print("*stc_epochs_i shape = ", stc_epochs_i.shape)
-
-                save_fname = f"{configs.parameters.roi_names[i]}_epochs.mat"
-                sub_save_path = os.path.join(save_path, self.sub_id)
-                os.makedirs(sub_save_path, exist_ok=True)
-                save_file_path = os.path.join(sub_save_path, save_fname)
-                sio.savemat(save_file_path, {"data": stc_epochs_i})
-
         if as_vhdr:
             save_file_path = save_file_path.replace(".pkl", ".vhdr")
             data_object.export(save_file_path, overwrite=overwrite)
@@ -264,19 +228,14 @@ class Subject:
         self.save(self.events, "events")
         self.save(self.events, "events", as_mat=True)
 
-    def concatenate_epochs(self, data=None, save=True, overwrite=False):
-        """
-        Concatenate epochs.
-        If data is provided then save as stc
-        """
+    def concatenate_epochs(self, save=True, overwrite=False):
         from mne.io import concatenate_raws, RawArray
 
-        if self.epochs is None and data is None:
+        if self.epochs is None:
             self.load_epochs()
-            data = self.epochs
 
         raw_list = []
-        for epoch in data:
+        for epoch in self.epochs:
             raw = RawArray(epoch, self.epochs.info)
             raw_list.append(raw)
 
@@ -284,10 +243,9 @@ class Subject:
 
         self.concatenated_epochs = raw_concatenated
 
-        object_name = (
-            "stc_epochs_concatenated" if data is not None else "epochs_concatenated"
+        self.save(
+            raw_concatenated, "epochs_concatenated", as_vhdr=True, overwrite=overwrite
         )
-        self.save(raw_concatenated, object_name, as_vhdr=True, overwrite=overwrite)
 
     def reject_and_update_epochs(self):
         dropped_epochs = pre_utils_epo.reject_bad_epochs(self.epochs)
