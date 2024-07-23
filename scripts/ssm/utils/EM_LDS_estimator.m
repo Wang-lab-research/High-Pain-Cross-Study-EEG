@@ -1,0 +1,394 @@
+function [SSMtrain_ACC,SSMtrain_S1,best_el,best_ff,fband_perms,opt_params,F1_scores,CCF_value_train] = EM_LDS_estimator(Fs,fbands,fband_names, ...
+    epo_times,raw_data,trainY,train_ids,stim_ids,T,tt_entire, ...
+    modality_flag,LS_flag,ccf_thresh_flag,save_best_flag)
+%EM_LDS_ESTIMATOR train SSM model based on given train data
+
+%% Display
+clc; disp('Performing offline LDS estimation for SSM model training...');
+
+%% Main
+rng(0);
+
+% A - state transition matrix
+% C - observation (output) matrix
+% Q - state noise covariance
+% R - observation noise covariance
+% x0 - initial state mean
+% P0 - initial state covarance
+% Mu - output mean
+% LL - log likelihood curve
+    
+% x(t+1) = Ax(t) + N(0,Q)
+% y(t)   = Cx(t) + Mu + N(0,R)
+
+% create fband permutations for feature testing
+fband_perms_1=[];
+fband_perms_2=[];
+for ii=1:length(fbands)
+    % first column
+    rpmt_arr = ii+1:5;
+    repmat_tmp = repmat(rpmt_arr,1,1);
+    fband_perms_1=[fband_perms_1,repmat_tmp];
+
+    % second column
+    repmat_tmp_2 = repmat(ii,1,length(fbands)-ii);
+    fband_perms_2=[fband_perms_2,repmat_tmp_2];
+end
+fband_perms=[fband_perms_1',fband_perms_2'];
+
+if modality_flag~=1 % EEG or STC, include S1 & ask for ccf params
+    % ask for parameters
+    def_params_flag     =   input(join(["% choose parameter settings for testing:\n",...
+                                    "if def_params_flag==0 % default 0.5/0.5\n",...
+                                        "     opt_a=0.5; opt_p=0.5; opt_ccf=0.250\n",...
+                                    "elseif def_params_flag==1 % optimal parameters (if ccf_pref.m was ran)\n",...
+                                        "\     opt_a=opt_params(1);opt_b=opt_params(2);opt_p=opt_params(3);opt_ccf=opt_params(4);\n",...
+                                    "elseif def_params_flag==2 % S1 preference\n",...
+                                        "     opt_a=0.2; opt_b=0.8; opt_p=0.1; opt_ccf=-0.2;\n",...
+                                    "elseif def_params_flag==3 % ACC preference\n",...
+                                        "     opt_a=0.8; opt_b=0.2; opt_p=0.5; opt_ccf=0.25;\n",...
+                                    "end');\ndef_params_flag = "]));
+    
+    % choose parameter settings for testing:
+    if def_params_flag==0 % default 0.5/0.5
+        opt_a=0.5; opt_b=0.5; opt_p=0.5; opt_ccf=0.0;
+    elseif def_params_flag==1 % optimal parameters (if ccf_pref.m was ran)
+%         opt_a=opt_params(1);opt_p=opt_params(2);opt_p=opt_params(3);opt_ccf=opt_params(4);
+    elseif def_params_flag==2 % S1 preference
+        opt_a=0.2; opt_b=0.8; opt_p=0.1; opt_ccf=-0.2;
+    elseif def_params_flag==3 % ACC preference
+        opt_a=0.8; opt_b=0.2; opt_p=0.5; opt_ccf=0.25;
+    end
+    opt_params=[opt_a,opt_b,opt_p,opt_ccf];
+        
+    %% %%%%%%%%%%%%%%%%%%%%% TRAIN %%%%%%%%%%%%%%%%%%%%%%%%%
+    for el=1:length(train_ids)
+        k=train_ids(el); 
+
+        % lds params
+        Dim_x = 1;
+        Niter = 300; % epochs
+    %     SSMtrain_ACC = cell(3,1); SSMtrain_S1 = cell(3,1);
+        
+        % test different frequency feature combinations iteratively
+        for ff = 1:(length(fbands)+length(fband_perms))
+            fprintf('\n***********************************')
+            fprintf('\n------------- TRIAL %d ------------\n',k)
+
+            % for the first five, test each frequency band on its own
+            if ff <= length(fbands)
+                SSM_ACC = lds(trainY{el,1}(:,ff),Dim_x,T,Niter,1e-6);
+                SSM_S1 = lds(trainY{el,2}(:,ff),Dim_x,T,Niter,1e-6);
+                fprintf('FBAND(S): %s\n\n',fband_names(ff))
+            % for the rest, test each combination of two fbands
+            elseif ff > length(fbands)
+                ff_adj=ff-5;
+                trainY_freq_perm_tmp = squeeze([trainY{el,1}(:,fband_perms(ff_adj,1)),trainY{el,1}(:,fband_perms(ff_adj,2))]);
+                SSM_ACC = lds(trainY_freq_perm_tmp,Dim_x,T,Niter,1e-6);
+                SSM_S1 = lds(trainY_freq_perm_tmp,Dim_x,T,Niter,1e-6);
+                fprintf('FBAND(S): %s + %s\n\n',[fband_names(fband_perms(ff_adj,1)),fband_names(fband_perms(ff_adj,2))] );
+            end
+    
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % obtain state space - ACC
+            tem_ACC = squeeze(SSM_ACC.x); % temporal data before Z-score
+            tem_ACC_new = tem_ACC;
+            
+            % clip values greater than 3*std
+            tem_ACC_new((tem_ACC_new>3*std(tem_ACC_new))) = 3*std(tem_ACC_new);
+        
+            % Z score the tem over half of the time range
+            range = 1:(T-1)/2; % this is the baseline!
+            mean_Z_ACC = mean(tem_ACC_new(range));
+            std_Z_ACC = std(tem_ACC_new(range));
+        
+            % apply Z score to ENTIRE RANGE
+            if ff > length(fbands); ff_adj=ff-5; else ff_adj=ff; end % use ff_adj again
+            spec_entire_ACC = trainY{1,3}(:,ff_adj);
+            tem_Z_ACC = (spec_entire_ACC - mean_Z_ACC) / std_Z_ACC; % Z-scored
+        
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% repeat for S1
+            tem_S1 = squeeze(SSM_S1.x); % temporal, before Z-score
+            tem_S1_new = tem_S1;
+    
+            % clip values greater than 3*std
+            tem_S1_new((tem_S1_new>3*std(tem_S1_new))) = 3*std(tem_S1_new);
+        
+            % Z score the tem over just half of the time range
+            mean_Z_S1 = mean(tem_S1_new(range));
+            std_Z_S1 = std(tem_S1_new(range));
+        
+            % apply Z score to ENTIRE RANGE
+            if ff > length(fbands); ff_adj=ff-5; else ff_adj=ff; end % use ff_adj again
+            spec_entire_S1 = trainY{1,3}(:,ff_adj);
+            tem_Z_S1 = (spec_entire_S1 - mean_Z_S1) / std_Z_S1; % Z-scored
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Compute CCF
+            CCF_value = ccf_cal_opt(tem_Z_ACC,tem_Z_S1,opt_a,opt_p);
+
+            if ccf_thresh_flag==2
+                ccf_thresh_new = 2*std(CCF_value);
+            else %
+                ccf_thresh_new = ccf_thresh_flag; 
+            end
+
+            % Detection analysis 
+            ccf_thresh_new = ccf_thresh_new + opt_ccf; % adjustable threshold
+            CCF_bin = CCF_value - ccf_thresh_new; 
+%             CCF_bin = abs(CCF_value) - ccf_thresh_new; % abs value for -ccf_thresh cross 
+        
+            % ccf detection params
+            CCF_bin(CCF_bin>=0) = 1;
+            CCF_bin(CCF_bin<0) = -1; 
+            CCF_diff = [0,diff(CCF_bin)];
+            
+            % Use only desired events (HS or HS and LS)
+            if LS_flag==1
+                stim_event_ids = [stim_ids.HS_ids;stim_ids.LS_ids];
+            else
+                stim_event_ids = stim_ids.HS_ids;
+            end
+        
+            % check event overlap
+            detections =  tt_entire(CCF_diff>0); % cross-threshold times                      
+            epo_event_times = epo_times(stim_event_ids)/Fs; % samples rather than time   
+            [TP_ind,FP_ind] = FP_check2(detections,epo_event_times); % T or F detection idxs
+
+            % Report performance
+            TP_times = detections(TP_ind); %length(TP_times)
+            FP_times = detections(FP_ind);
+
+            % metrics
+            Precision = length(TP_times)/(length(TP_times)+length(FP_times)); % # of TP / # of Stims
+            
+            Recall = length(TP_times)/length(stim_event_ids); % # of TP / # of Stim events
+            F1_score = 2 * ( ( Precision*Recall) / (Precision+Recall) );
+
+            FP_overall = length(FP_times)/( length(raw_data)/Fs/60 ); % # of FP / # of total mins 
+            % in entire recording.
+    
+            % Metrics used to check best train trial
+            fprintf('\nF1-Score:\t%3.3f\n',F1_score);
+            fprintf('FP/min:\t\t%3.3f\n',FP_overall); 
+            fprintf('***********************************')
+
+            F1_scores(el,ff) = F1_score;
+            FP_overalls(el,ff) = FP_overall;
+            CCF_values(el,ff,:) = CCF_value;
+            SSM_ACC_all{el,ff} = SSM_ACC;
+            SSM_S1_all{el,ff} = SSM_S1;
+            ccf_thresh_all(el,ff) = ccf_thresh_new;
+
+        end %ff
+    end % el
+    
+    %% Choose whether to save all training models or just best
+    if save_best_flag==0
+            fprintf("\n\n+++++++++++++ SUMMARY +++++++++++++\n")
+            fprintf("\nSaved models for each training trial." + ...
+                "\n\nSSMtrain_ACC=SSM_ACC_all & SSMtrain_S1=SSM_S1_all.")
+            SSMtrain_ACC=SSM_ACC_all; best_el=0;best_ff=0; % no best
+            SSMtrain_S1=SSM_ACC_S1_all;
+
+            % Also save the CCF_values
+            CCF_value_train = CCF_values;
+            fprintf("\nCCF_value_train = CCF_values_all.\n");
+            fprintf("\n+++++++++++++++++++++++++++++++++++\n")
+    elseif save_best_flag==1
+        % Save model with best metrics
+        if ~isnan(max(max(F1_scores))) % if any successful detections occurred
+            [maxval,~] = max(F1_scores);
+            [~,best_ff] = max(maxval);
+            [~,best_el] = max(F1_scores(:,best_ff));
+    
+            % Save best model for training
+            fprintf("\n\n+++++++++++++ SUMMARY +++++++++++++\n")
+            fprintf('\nBEST TRIAL: %d\n',train_ids(best_el))
+            if best_ff > length(fbands)
+                ff_adj=ff-5;
+                fprintf('BEST FBAND(S): %s + %s\n\n',[fband_names(fband_perms(ff_adj,1)),fband_names(fband_perms(ff_adj,2))] );
+            else 
+                ff_adj=ff;
+                fprintf('\nBEST FBAND: %s\n',fband_names(ff_adj))
+            end % use ff_adj again
+    
+            % Save best model for training
+            SSMtrain_ACC = SSM_ACC_all{best_el,best_ff};
+            SSMtrain_S1 = SSM_S1_all{best_el,best_ff};
+    
+            % Also save the CCF_value from the best train trial
+            CCF_value_train = squeeze(CCF_values(best_el,best_ff,:));
+            fprintf('\nCCF threshold: %f\n',ccf_thresh_all(best_el,best_ff));
+            fprintf("+++++++++++++++++++++++++++++++++++\n")
+    
+        else
+            fprintf("\n\n+++++++++++++ SUMMARY +++++++++++++\n")
+            fprintf("No detections to report!\nNo train model saved.\n")
+            fprintf("+++++++++++++++++++++++++++++++++++\n")
+            SSMtrain_ACC=[];
+            SSMtrain_S1=[];
+        end
+    end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+elseif modality_flag==1 % LFP, omit S1
+    % opt_params not needed
+    opt_params=[];
+    
+    %% %%%%%%%%%%%%%%%%%%%%% TRAIN %%%%%%%%%%%%%%%%%%%%%%%%%
+    for el=1:length(train_ids)
+        k=train_ids(el);
+
+        % lds params
+        Dim_x = 1;
+        Niter = 300; % epochs
+        
+        % test different frequency feature combinations iteratively
+        for ff = 1:(length(fbands)+length(fband_perms))
+            
+            fprintf('\n***********************************')
+            fprintf('\n------------- TRIAL %d ------------\n',k)
+
+            % for the first five, test each frequency band on its own
+            if ff <= length(fbands)
+                SSM_ACC = lds(trainY{el,1}(:,ff),Dim_x,T,Niter,1e-6);
+                fprintf('FBAND(S): %s\n\n',fband_names(ff))
+            % for the rest, test each combination of two fbands
+            elseif ff > length(fbands)
+                ff_adj=ff-5;
+                trainY_freq_perm_tmp = squeeze([trainY{el,1}(:,fband_perms(ff_adj,1)),trainY{el,1}(:,fband_perms(ff_adj,2))]);
+                fprintf('FBAND(S): %s + %s\n\n',[fband_names(fband_perms(ff_adj,1)),fband_names(fband_perms(ff_adj,2))] );
+                SSM_ACC = lds(trainY_freq_perm_tmp,Dim_x,T,Niter,1e-6);
+            end
+    
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % obtain state space - ACC
+            tem_ACC = squeeze(SSM_ACC.x); % temporal data before Z-score
+            tem_ACC_new = tem_ACC;
+            
+            % clip values greater than 3*std
+            tem_ACC_new((tem_ACC_new>3*std(tem_ACC_new))) = 3*std(tem_ACC_new);
+        
+            % Z score the tem over half of the time range, the baseline
+            range = 1: (T-1)/2; % this is the baseline!
+            mean_Z_ACC = mean(tem_ACC_new(range));
+            std_Z_ACC = std(tem_ACC_new(range));
+        
+            % apply Z score to ENTIRE RANGE
+            if ff > length(fbands); ff_adj=ff-5; else ff_adj=ff; end % use ff_adj again
+            spec_entire_ACC = trainY{1,3}(:,ff_adj);
+            tem_Z_ACC = (spec_entire_ACC - mean_Z_ACC) / std_Z_ACC; % Z-scored
+                
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Compute CCF
+            CCF_value = (tem_Z_ACC); % No CCF, only ACC
+            
+            if ccf_thresh_flag==2
+                ccf_thresh_new = 2*std(CCF_value);
+            else %
+                ccf_thresh_new = ccf_thresh_flag; 
+            end            
+
+            % Detection analysis 
+            CCF_bin = CCF_value - ccf_thresh_new; 
+%             CCF_bin = abs(CCF_value) - ccf_thresh_new; % abs value for -ccf_thresh cross 
+
+            % ccf detection params
+            CCF_bin(CCF_bin>=0) = 1;
+            CCF_bin(CCF_bin<0) = -1; 
+            CCF_diff = [0;diff(CCF_bin)];
+            
+            % Use only desired events (HS or HS and LS)
+            if LS_flag==1
+                stim_event_ids = [stim_ids.HS_ids;stim_ids.LS_ids];
+            else
+                stim_event_ids = stim_ids.HS_ids;
+            end
+
+            % check event overlap
+            detections =  tt_entire(CCF_diff>0); % cross-threshold times                      
+            epo_event_times = epo_times(stim_event_ids)/Fs; % samples rather than time   
+            [TP_ind,FP_ind] = FP_check2(detections,epo_event_times); % T or F detection idxs
+            
+            % Report performance
+            TP_times = detections(TP_ind);
+            FP_times = detections(FP_ind);
+
+            % metrics
+            Precision = length(TP_times)/(length(TP_times)+length(FP_times)); % # of TP / # of Stims
+
+            Recall = length(TP_times)/length(stim_event_ids); % # of TP / # of Stim events
+            F1_score = 2 * ( ( Precision*Recall) / (Precision+Recall) );
+
+            FP_overall = length(FP_times)/( length(raw_data)/Fs/60 ); % # of FP / # of total mins 
+            % in entire recording.
+    
+            % Metrics used to check best train trial
+            fprintf('\nF1-Score:\t%3.3f\n',F1_score);
+            fprintf('FP/min:\t\t%3.3f\n',FP_overall); 
+            fprintf('***********************************')
+
+            F1_scores(el,ff) = F1_score;
+            FP_overalls(el,ff) = FP_overall;
+            CCF_values(el,ff,:) = CCF_value;
+            SSM_ACC_all{el,ff} = SSM_ACC;
+            ccf_thresh_all(el,ff) = ccf_thresh_new;
+
+        end % ff    
+    end % el
+
+    %% Choose whether to save all training models or just best
+    if save_best_flag==0
+            fprintf("\n\n+++++++++++++ SUMMARY +++++++++++++\n")
+            fprintf("\nSaved models for each training trial.\n\nSSMtrain_ACC=SSM_ACC_all.")
+            SSMtrain_ACC=SSM_ACC_all; best_el=0;best_ff=0; % no best
+            SSMtrain_S1=[];
+
+            % Also save the CCF_values
+            CCF_value_train = CCF_values;
+            fprintf("\nCCF_value_train = CCF_values_all.\n");
+            fprintf("\n+++++++++++++++++++++++++++++++++++\n")
+
+    elseif save_best_flag==1
+        % Save model with best metrics
+        if ~isnan(max(max(F1_scores))) % if any successful detections occurred
+            [maxval,~] = max(F1_scores);
+            [~,best_ff] = max(maxval);
+            [~,best_el] = max(F1_scores(:,best_ff));
+    
+            % Save best model for training
+            fprintf("\n\n+++++++++++++ SUMMARY +++++++++++++\n")
+            fprintf("Train model saved.\n\n")
+            fprintf('BEST TRIAL: %d\n',train_ids(best_el))
+            if best_ff > length(fbands)
+                ff_adj=best_ff-5;
+                fprintf('BEST FBAND(S): %s + %s\n\n',[fband_names(fband_perms(ff_adj,1)),fband_names(fband_perms(ff_adj,2))] );
+            else 
+                ff_adj=best_ff;
+                fprintf('\nBEST FBAND: %s\n',fband_names(ff_adj))
+            end % use ff_adj again
+            fprintf("Metrics:\n")
+            fprintf('F1-Score:\t%f\n',F1_scores(best_el,best_ff))
+            fprintf('FP/min:\t\t%f\n',FP_overalls(best_el,best_ff))
+    
+            SSMtrain_ACC = SSM_ACC_all{best_el,best_ff};
+            SSMtrain_S1=[]; % output empty array to keep function outputs same in main
+    
+            % Also save the CCF_value from the best train trial
+            CCF_value_train = squeeze(CCF_values(best_el,best_ff,:));
+            fprintf('\nCCF threshold: %f\n',(ccf_thresh_all(best_el,best_ff)));
+            fprintf("+++++++++++++++++++++++++++++++++++\n")
+    
+        else
+            fprintf("\n\n+++++++++++++ SUMMARY +++++++++++++\n")
+            fprintf("No detections to report!\nNo train model saved.\n")
+            fprintf("+++++++++++++++++++++++++++++++++++\n")
+            SSMtrain_ACC=[];
+            SSMtrain_S1=[];%
+        end
+    end %% save_best_flag
+end % modality_flag
+end % func
