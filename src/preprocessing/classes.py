@@ -105,7 +105,7 @@ class Subject:
             self.save(self.eyes_open, "eyes_open")
         else:
             self.eyes_open = self.load_eyes_open()
-            
+
         # Input: raw from self.raw
         # Steps:
         # 1. Identify eyes open time frames
@@ -117,8 +117,8 @@ class Subject:
     def load_eyes_open(self):
         self.eyes_open = pickle.load(
             open(f"{self.preprocessed_data_path}/{self.subject_id}_eyes_open.pkl", "rb")
-        ) 
-    
+        )
+
     def get_cleaned_epochs(self, TIME_RANGE, PERISTIM_TIME_WIN):
         if not self.pkl_exists("epochs"):
             self.epochs, self.stimulus_labels, self.pain_ratings, self.events = (
@@ -179,27 +179,21 @@ class Subject:
         as_vhdr: bool = False,
         overwrite: bool = False,
     ):
-        if object_name == "stc_eyes_open":
-            save_path = config.output.parent_stc_save_path.eyes_open
-        elif object_name == "stc_epochs":
-            save_path = config.output.parent_stc_save_path.epochs
-        else:
-            save_path = config.output.parent_save_path
-
+        save_path = self.preprocessed_data_path
         save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.pkl")
 
         if as_mat and "stc" not in object_name:
-            save_file_path = save_file_path.replace(".pkl", ".mat")
-            sio.savemat(save_file_path, {object_name: data_object})
+            save_file_path = os.path.join(save_path, f"{self.subject_id}_{object_name}.mat")
+            sio.savemat(save_file_path, {"data": data_object}, format='5')
         elif as_mat and object_name == "stc_epochs":
             stc_epochs = data_object
             stc_epochs = np.concatenate(stc_epochs)
             stc_epochs = np.reshape(
-                stc_epochs, (len(stc_epochs, stc_epochs.shape[0], stc_epochs.shape[1]))
+                stc_epochs, (len(stc_epochs), stc_epochs.shape[0], stc_epochs.shape[1])
             )
             print("*stc_epochs shape = ", stc_epochs.shape)
 
-            for i in range(len(stc_epochs.shape[0])):
+            for i in range(stc_epochs.shape[0]):
                 print(
                     f"Saving stc.mat for {self.sub_id} in region: {configs.parameters.roi_names[i]}"
                 )
@@ -210,7 +204,7 @@ class Subject:
                 sub_save_path = os.path.join(save_path, self.sub_id)
                 os.makedirs(sub_save_path, exist_ok=True)
                 save_file_path = os.path.join(sub_save_path, save_fname)
-                sio.savemat(save_file_path, {"data": stc_epochs_i})
+                sio.savemat(save_file_path, {"data": stc_epochs_i}, format='5')
 
         if as_vhdr:
             save_file_path = save_file_path.replace(".pkl", ".vhdr")

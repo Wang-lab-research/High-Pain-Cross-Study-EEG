@@ -515,8 +515,7 @@ def find_and_interpolate_bad_channels(raw):
 
 
 def set_average_reference(raw):
-    raw.set_eeg_reference(ref_channels="average", 
-                          projection=True)
+    raw.set_eeg_reference(ref_channels="average", projection=True)
 
 
 def fit_ica(raw, subject_id):
