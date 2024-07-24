@@ -15,6 +15,7 @@ addpath((genpath('./utils/')));
 % LFP omits S1, EEG uses sensor space, STC uses source ROIs
 modality = "stc";
 params = get_params(modality);
+Fs = params.Fs;
 
 %% Load data
 if modality=="stc"
@@ -65,20 +66,22 @@ aucs = [];
 %% Loop through high pain trials to get best for training
 for i = 1:params.folds
     random_idx = randi(length(high_pain_trials));
-    random_trial_id = high_pain_trials(random_idx);
-    disp(['Random trial ID with high pain rating: ', num2str(random_trial_id)]);
+    train_trial_id = high_pain_trials(random_idx);
+    disp(['Random trial ID with high pain rating: ', num2str(train_trial_id)]);
     
-    train_trial = stc_epochs(random_trial_id,:,:);
+    train_trial = squeeze(stc_epochs(train_trial_id,:,:));
 
     test_trial_ids = 1:size(stc_epochs,1);
-    test_trial_ids(random_trial_id) = [];
+    test_trial_ids(train_trial_id) = [];
     test_trials = stc_epochs(test_trial_ids, :, :);
     test_labels = ratings(test_trial_ids);
 
     %% Set up training data
     close all;
-    [trainY,fbands,T,tt_entire] = train_dataloader(Fs,selected_goods,epo_times,...
-        raw_data,train_ids,fft_flag,log_transform_flag,Tbin,modality_flag,train_plot_flag);
+    crop_flag = 1; % whether to crop trials shorter
+    tmin = -1; tmax = 1;
+    [trainY,fbands,T,tt_entire] = extract_features(Fs,params.roi_names,events,...
+        train_trial,train_trial_id,params.fft_flag,params.log_transform_flag,tmin,tmax,crop_flag,params.train_plot_flag);
 
     %% TRAINING: Off-line EM algorithm for LDS Estimation
     

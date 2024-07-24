@@ -1,5 +1,5 @@
 function [params] = get_params(modality)
-%GET_CONFIGS 
+%GET_PARAMS
 
 switch modality
     case "lfp"
