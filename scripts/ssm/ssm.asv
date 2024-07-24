@@ -80,7 +80,7 @@ for i = 1:params.folds
     [trainY,fbands,T,tt_entire] = train_dataloader(Fs,selected_goods,epo_times,...
         raw_data,train_ids,fft_flag,log_transform_flag,Tbin,modality_flag,train_plot_flag);
 
-    %% TRAINING: Off-line EM algorithm for LDS Estimation
+    %% Off-line EM algorithm for LDS Estimation
     
     ccf_thresh_flag     =       2; % 2: 2*std(ccf_value), otherwise custom value
     save_best_flag      =       0; % 0: save all trials, 1: save only the "best"
@@ -90,7 +90,7 @@ for i = 1:params.folds
         stim_ids,T,tt_entire,modality_flag,LS_flag,ccf_thresh_flag,save_best_flag);
     % pause
     
-    %% TESTING: Online KF -- CONTINUOUS TRACE
+    %% Online KF -- CONTINUOUS TRACE
     
     close all;
     KF_plot_flag        =       1; % plot KF detections or not

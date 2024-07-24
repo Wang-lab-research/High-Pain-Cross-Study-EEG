@@ -1,24 +1,5 @@
-% Initialize variables to store results
-train_trial_ids = [];
-precisions = [];
-recalls = [];
-f1s = [];
-confusion_matrices = [];
-aucs = [];
-    
+
 for i = 1:folds
-    % Randomly sample an event ID at high pain threshold or above
-    high_pain_indices = find(ratings > high_pain_threshold);
-    train_trial_id = randsample(high_pain_indices, 1);
-    train_trial_ids = [train_trial_ids; train_trial_id];
-    
-    train_trial = epochs(train_trial_id);
-    test_trials = epochs;
-    test_trials(train_trial_id) = [];
-    test_trial_ids = 1:length(epochs);
-    test_trial_ids(train_trial_id) = [];
-    test_labels = ratings;
-    test_labels(train_trial_id) = [];
 
 
     % Initialize variables to store results
